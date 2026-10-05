@@ -29,3 +29,16 @@
 .shell[data-theme='night'] .map canvas{filter:invert(1) hue-rotate(163deg) saturate(.55) brightness(1.8) contrast(.9)}
 @media(max-width:700px){.rating-dialog{width:100%;max-width:100%;margin:auto auto 0;border-radius:26px 26px 0 0;max-height:94dvh}}
 .map-fallback{padding-bottom:88px}
+
+/* Ausweichansicht, wenn keine Kartenkacheln laden */
+.scheme-map{position:absolute;inset:0;z-index:1;overflow:hidden;background:
+  radial-gradient(circle at 50% 50%,color-mix(in srgb,var(--surface,#fff) 70%,transparent),transparent 70%),
+  linear-gradient(var(--border,#e5e4e9) 1px,transparent 1px) 0 0/32px 32px,
+  linear-gradient(90deg,var(--border,#e5e4e9) 1px,transparent 1px) 0 0/32px 32px,
+  var(--surface-subtle,#efeff3)}
+.scheme-map svg{position:absolute;inset:0}
+.scheme-leader{stroke:var(--muted,#74727d);stroke-width:1;stroke-dasharray:3 3;opacity:.6}
+.scheme-dot{fill:var(--muted,#74727d);opacity:.7}
+.scheme-marker{position:absolute;transform:translate(-50%,-50%);padding:0;display:grid;place-items:center}
+.scheme-note{pointer-events:none;position:absolute;left:12px;right:12px;bottom:10px;margin:0;font-size:11px;line-height:1.4;color:var(--muted,#74727d);text-align:center}
+.map-fallback{padding-bottom:88px}

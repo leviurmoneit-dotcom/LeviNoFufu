@@ -6,6 +6,7 @@ import './ios.css';
 import './themes.css';
 import './tour-details.css';
 import './atlas.css';
+import './motion.css';
 import PwaRegister from '../components/PwaRegister';
 export const metadata: Metadata = {
   title: 'Glühwein Tour 26',
