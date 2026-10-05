@@ -1,0 +1,30 @@
+.stand-source{margin:12px 3px 0;color:var(--muted);font-size:11px;line-height:1.65}
+.stand-source summary{min-height:44px;cursor:pointer;display:flex;align-items:center;gap:7px;font-weight:550}
+.stand-source summary::before{content:'+';font-size:16px;color:var(--wine);width:16px;text-align:center}
+.stand-source[open] summary::before{content:'−'}
+.stand-source p{margin:0 0 12px}
+.stand-source a{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;border-top:1px solid var(--border);color:var(--ink);text-decoration:underline;text-underline-offset:3px}
+.season-note{display:flex;gap:10px;margin:20px 4px 0;color:var(--muted);font-size:11px;line-height:1.65}
+.season-note>svg{flex-shrink:0;margin-top:3px;color:var(--wine)}
+.season-note p{margin:0}
+.season-note strong{display:block;font-weight:600;color:var(--ink);margin-bottom:5px}
+.season-note span{display:block}
+.shell[data-theme] .stop-copy{min-width:0;flex:1;text-align:left}
+.shell[data-theme] .stop-copy strong{white-space:normal}
+.shell[data-theme] .stand-extra{font-size:10px;line-height:1.5;align-items:flex-start}
+.shell[data-theme] .stand-extra>span:first-child{min-width:0}
+.shell[data-theme] .sources{font-size:11px;line-height:1.6;margin-top:20px}
+.shell[data-theme] .sources summary{min-height:44px;cursor:pointer}
+.shell[data-theme] .sources a{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
+.shell[data-theme] .rating-stand{align-items:center}
+.shell[data-theme] .rating-stand>div{min-width:0}
+.shell[data-theme] .rating-stand h2{overflow-wrap:anywhere;line-height:1.2}
+.shell[data-theme] .rating-stand p{font-size:11px;line-height:1.5}
+.shell[data-theme] .map-marker.selected{z-index:4}
+
+.shell[data-theme='noel'] .winter-hero :is(.hero-date,.hero-group,.hero-foot){color:#d6e4c4}
+.shell[data-theme='night'] .winter-hero .hero-date{color:#e8c193}
+.shell[data-theme='night'] .winter-hero :is(.hero-group,.hero-foot){color:#ccb6c2}
+.shell[data-theme]{overflow-x:clip}
+.shell[data-theme='night'] .map canvas{filter:invert(1) hue-rotate(163deg) saturate(.55) brightness(1.8) contrast(.9)}
+@media(max-width:700px){.rating-dialog{width:100%;max-width:100%;margin:auto auto 0;border-radius:26px 26px 0 0;max-height:94dvh}}
