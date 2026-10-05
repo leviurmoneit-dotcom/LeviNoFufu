@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { asset } from '../lib/asset';
 export default function WinterCup({variant='cranberry'}:{variant?:'cranberry'|'atlas'}){
  const host=useRef<HTMLDivElement>(null),turn=useRef<(()=>void)|null>(null),[available,setAvailable]=useState(false);
  useEffect(()=>{if(!host.current)return;let renderer:THREE.WebGLRenderer;let raf=0,disposed=false;const scene=new THREE.Scene();const target=host.current;const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -26,5 +27,5 @@ export default function WinterCup({variant='cranberry'}:{variant?:'cranberry'|'a
  let visible=true;const observer=new IntersectionObserver(entries=>{visible=entries[0].isIntersecting;if(visible&&!document.hidden&&!raf)frame(performance.now());else if(!visible){cancelAnimationFrame(raf);raf=0}},{threshold:.05});observer.observe(target);const visibility=()=>{cancelAnimationFrame(raf);raf=0;if(!document.hidden&&visible)frame(performance.now())};document.addEventListener('visibilitychange',visibility);frame();
  return()=>{disposed=true;cancelAnimationFrame(raf);observer.disconnect();document.removeEventListener('visibilitychange',visibility);turn.current=null;scene.traverse(obj=>{const m=obj as THREE.Mesh;if(m.geometry)m.geometry.dispose();if(m.material){const mats=Array.isArray(m.material)?m.material:[m.material];mats.forEach(mat=>{(mat as THREE.MeshStandardMaterial).map?.dispose();mat.dispose()})}});renderer.dispose();renderer.domElement.remove()}
  },[variant]);
- return <button className="winter-cup" aria-label="3D-Glühweintasse drehen" onClick={()=>turn.current?.()}><div ref={host}/>{!available&&<img src="/illustrations/tasse.svg" alt="Glühweintassen" className="cup-fallback"/>}</button>
+ return <button className="winter-cup" aria-label="3D-Glühweintasse drehen" onClick={()=>turn.current?.()}><div ref={host}/>{!available&&<img src={asset('/illustrations/tasse.svg')} alt="Glühweintassen" className="cup-fallback"/>}</button>
 }
