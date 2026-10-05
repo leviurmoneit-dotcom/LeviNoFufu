@@ -2,7 +2,7 @@ import { asset } from './asset';
 export type TourPhoto = { id: string; src: string; name: string };
 export type Rating = { values: number[]; comment: string; photos: TourPhoto[]; updated: string };
 export type TourState = { name: string; ratings: Record<string, Rating> };
-export const initialState: TourState = { name: 'Levi', ratings: {} };
+export const initialState: TourState = { name: '', ratings: {} };
 export const criteria = ['Geschmack', 'Temperatur', 'Atmosphäre', 'Preis / Leistung', 'Schlotzigkeitsfaktor'];
 export type StandSource = { title: string; url: string };
 export type Stand = {

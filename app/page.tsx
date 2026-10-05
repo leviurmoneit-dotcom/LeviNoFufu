@@ -1,41 +1,278 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Map, Trophy, Images, Users, ArrowUpRight, ChevronRight, MapPin, Navigation, Star, LockKeyhole, Check, Sparkles, Copy, X, Camera, Snowflake, Palette } from 'lucide-react';
-import FadeContent from '../components/FadeContent';
+import { ArrowUpRight, Camera, Check, ChevronRight, Copy, Images, Map, Trophy, Users, Wifi, WifiOff, X } from 'lucide-react';
 import RatingSheet from '../components/RatingSheet';
-import Snowfall from '../components/Snowfall';
-import ThemePicker, { type ThemeId } from '../components/ThemePicker';
-import { average, formatScore, initialState, stands, legacyStands, stopNumber, type Rating, type Stand, type TourState } from '../lib/data';
-import { loadTour, saveTour } from '../lib/storage';
-import { asset } from '../lib/asset';
-const TourMap=dynamic(()=>import('../components/TourMap'),{ssr:false,loading:()=> <div className="map-skeleton">Deine Tourkarte wird geladen …</div>});
-const WinterCup=dynamic(()=>import('../components/WinterCup'),{ssr:false});
-type View='tour'|'ranking'|'photos'|'group';
-const nav=[{id:'tour' as View,label:'Tour',icon:Map},{id:'ranking' as View,label:'Ranking',icon:Trophy},{id:'photos' as View,label:'Fotos',icon:Images},{id:'group' as View,label:'Gruppe',icon:Users}];
-function Reveal({children}:{children:React.ReactNode}) { const [reduced,setReduced]=useState(true);useEffect(()=>setReduced(matchMedia('(prefers-reduced-motion: reduce)').matches),[]);return reduced?<>{children}</>:<FadeContent duration={350} initialOpacity={0.5}>{children}</FadeContent> }
-export default function Home(){
- const [view,setView]=useState<View>('tour'),[state,setState]=useState<TourState>(initialState),[ready,setReady]=useState(false),[selected,setSelected]=useState(stands[0].id),[ratingStand,setRatingStand]=useState<Stand|null>(null),[toast,setToast]=useState(''),[storageWarning,setStorageWarning]=useState(''),[lightbox,setLightbox]=useState<{src:string;label:string}|null>(null),[editingName,setEditingName]=useState(false),[nameDraft,setNameDraft]=useState('');
- const [theme,setTheme]=useState<ThemeId>('atlas'),[choosingTheme,setChoosingTheme]=useState(false);
- useEffect(()=>{try{const saved=localStorage.getItem('glueh26-theme');if(saved==='studio'||saved==='noel'||saved==='night'||saved==='atlas')setTheme(saved)}catch{}},[]);
- useEffect(()=>{document.body.dataset.theme=theme},[theme]);
- function chooseTheme(next:ThemeId){setTheme(next);try{localStorage.setItem('glueh26-theme',next)}catch{}}
- const toastTimer=useRef<ReturnType<typeof setTimeout>|undefined>(undefined),photoDialog=useRef<HTMLDialogElement>(null),nameDialog=useRef<HTMLDialogElement>(null),standCard=useRef<HTMLElement>(null);
- useEffect(()=>{loadTour().then(saved=>{setState(saved);setSelected(stands.find(s=>!saved.ratings[s.id])?.id||stands[0].id)}).catch(()=>setStorageWarning('Der lokale Speicher ist nicht verfügbar. Bewertungen können gerade nicht dauerhaft gespeichert werden.')).finally(()=>setReady(true));return()=>clearTimeout(toastTimer.current)},[]);
- useEffect(()=>{const modelContext=(document as Document & {modelContext?:{registerTool:(tool:unknown,options:unknown)=>void|Promise<void>}}).modelContext;if(!modelContext)return;const lifecycle=new AbortController();try{void Promise.resolve(modelContext.registerTool({name:'navigate_tour',description:'Open Tour, Ranking, Photos or Group in the local prototype. Does not change ratings.',inputSchema:{type:'object',properties:{view:{type:'string',enum:['tour','ranking','photos','group']}},required:['view'],additionalProperties:false},annotations:{readOnlyHint:false},execute:async(input:{view:string})=>{if(!['tour','ranking','photos','group'].includes(input.view))throw Error('Unbekannte Ansicht');setView(input.view as View);window.scrollTo(0,0);await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));return {view:input.view}}},{signal:lifecycle.signal})).catch(()=>{})}catch{}return()=>lifecycle.abort()},[]);
- useEffect(()=>{if(lightbox)photoDialog.current?.showModal();else photoDialog.current?.close()},[lightbox]);
- useEffect(()=>{if(editingName)nameDialog.current?.showModal();else nameDialog.current?.close()},[editingName]);
- function notify(message:string){setToast(message);clearTimeout(toastTimer.current);toastTimer.current=setTimeout(()=>setToast(''),3500)}
- const current=stands.find(s=>s.id===selected)!,completed=stands.filter(s=>state.ratings[s.id]).length,next=stands.find(s=>!state.ratings[s.id]),photos=[...stands,...legacyStands].flatMap(s=>(state.ratings[s.id]?.photos||[]).map(p=>({...p,stand:s,name:state.name,archived:!s.id.startsWith('wm2025-')}))),unlocked=stands.filter(s=>state.ratings[s.id]).sort((a,b)=>average(b,state.ratings[b.id])-average(a,state.ratings[a.id])),locked=stands.filter(s=>!state.ratings[s.id]);
- async function saveRating(r:Rating){if(!ratingStand)return;const updated={...state,ratings:{...state.ratings,[ratingStand.id]:r}};await saveTour(updated);setState(updated);notify('Bewertung und Fotos gespeichert. Prost!')}
- function changeView(v:View){setView(v);window.scrollTo({top:0,behavior:'instant'})}
- async function saveName(e:React.FormEvent){e.preventDefault();const name=nameDraft.trim();if(!name)return;try{const updated={...state,name};await saveTour(updated);setState(updated);setEditingName(false);notify('Dein Name wurde gespeichert.')}catch{notify('Dein Name konnte nicht gespeichert werden.')}}
- function openRating(s:Stand){setRatingStand(s)}
- return <div className="shell" data-theme={theme}><header className="app-header"><a href="#" onClick={e=>{e.preventDefault();changeView('tour')}} className="brand"><MapPin size={15}/><span>Bielefeld</span><ChevronRight size={13}/></a><div className="header-right"><button className="theme-trigger" onClick={()=>setChoosingTheme(true)} aria-label="Design auswählen"><Palette size={16}/><span>Looks</span></button><button className="avatar" aria-label="Deinen Namen ändern" onClick={()=>{setNameDraft(state.name);setEditingName(true)}}>{state.name.slice(0,1).toUpperCase()}</button></div></header><main className="content">{storageWarning&&<div className="notice error" role="alert">{storageWarning}</div>}
- {view==='tour'&&<><section className="winter-hero">{(theme==='night'||theme==='noel')&&<Snowfall/>}<div className="hero-copy"><span className="hero-date">{theme==='atlas'?'EIN WINTER. EURE RUNDE.':'WINTER 2026'}</span><h1>Glühwein<br/>Tour <span>26.</span></h1><div className="hero-group"><div className="mini-avatars"><span>{state.name.slice(0,1)}</span><span>M</span><span>B</span><span>J</span></div><span>Deine Runde</span></div></div><WinterCup variant={theme==='atlas'?'atlas':'cranberry'}/><div className="hero-foot"><span><span className="small-dot"/>{stands.length} Stopps</span><span>{completed} von {stands.length} bewertet</span></div></section><section className="route-card"><div className="section-heading route-title"><h2>{theme==='atlas'?'Durch die Altstadt.':'Deine Route'}</h2><span>Standliste 2025</span></div><TourMap selected={selected} state={state} onSelect={setSelected}/><div className="route-caption"><span><i className="route-key current"/>Ausgewählt</span><span><i className="route-key done"/>Bewertet</span><span>Ungefähre Standorte</span></div></section><section ref={standCard} className="next-card" aria-label="Ausgewählter Tourstopp"><div className="next-card-top"><div className="stand-photo"><img src={current.image} alt="Weihnachtsmarkt-Stimmung, Beispielbild"/></div><div className="stand-details"><div className="card-meta"><span>{state.ratings[current.id]?'Schon bewertet':current.id===next?.id?'Nächster Stopp':'Ausgewählter Stopp'}</span><span>{stopNumber(current.id)}</span></div><h2>{current.name}</h2><div className="stand-location">{current.place}</div></div></div><div className="card-actions"><a className="secondary" href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(current.place+", Bielefeld")}&travelmode=walking`} target="_blank" rel="noreferrer"><Navigation size={16}/> Route</a><button className="primary" disabled={!ready} onClick={()=>openRating(current)}>{state.ratings[current.id]?'Bewertung ändern':theme==='atlas'?'Wie schmeckt’s?':'Bewerten'}<Star size={16}/></button></div><div className="stand-extra"><span>{current.wine}</span><span>{state.ratings[current.id]?<><Star size={10}/>{formatScore(average(current,state.ratings[current.id]))}</>:<><LockKeyhole size={10}/>Score gesperrt</>}</span></div></section><details className="stand-source"><summary>Über diesen Stopp · Quellen 2025</summary><p>{current.description}</p><p>Preise vor Ort prüfen. Die Markierung zeigt den Ortsbereich, keine vermessene Standposition.</p><div>{current.sources.map(source=><a key={source.url} href={source.url} target="_blank" rel="noreferrer">{source.title}<ArrowUpRight size={13}/></a>)}</div></details><section className="stop-list"><div className="section-heading"><h2>Alle Stopps</h2><span>{completed} / {stands.length}</span></div><div className="ios-list">{stands.map(s=><button className={`stop-row ${selected===s.id?'current':''}`} key={s.id} onClick={()=>{setSelected(s.id);standCard.current?.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'center'})}}><span className={`stop-id ${state.ratings[s.id]?'checked':''}`}>{state.ratings[s.id]?<Check size={14}/>:stopNumber(s.id)}</span><img src={s.image} alt=""/><span className="stop-copy"><strong>{s.name}</strong><small>{s.place}</small></span><ChevronRight size={15}/></button>)}</div><div className="season-note"><Snowflake size={16}/><p><strong>2025 entdeckt. Für 26 vorgemerkt.</strong><span>{stands.length} belegte Stopps aus dem Vorjahr. Ihre Teilnahme 2026 ist hier noch nicht bestätigt. Die Bilder sind Illustrationen, keine Standfotos.</span></p></div></section></>}
- {view==='ranking'&&<><PageHeading label="DEINE RUNDE" title="Ranking" subtitle="Dein Geschmack entscheidet."/>{unlocked.length>0?<Reveal><div className="winner-card"><div className="winner-icon"><Trophy size={29}/></div><span className="eyebrow">DEIN FREIGESCHALTETER FAVORIT</span><h2>{unlocked[0].name}</h2><div className="winner-score">{formatScore(average(unlocked[0],state.ratings[unlocked[0].id]))}<span> / 5</span></div><p>Deine Bewertung · auf diesem Gerät</p></div></Reveal>:<div className="winner-card"><Trophy size={30}/><h2>Wer wird euer Favorit?</h2><p>Bewerte deinen ersten Stand, um seinen Score freizuschalten.</p><button className="primary" onClick={()=>openRating(current)}>Ersten Stand bewerten<ArrowUpRight size={17}/></button></div>}<div className="ranking-list">{[...unlocked,...locked].map((s,i)=><button key={s.id} className="ranking-row" onClick={()=>openRating(s)}><span className="rank">{state.ratings[s.id]?String(i+1).padStart(2,'0'):<LockKeyhole size={17}/>}</span><img src={s.image} alt=""/><span><strong>{s.name}</strong><small>{state.ratings[s.id]?'Deine Bewertung':'Bewerten & Score freischalten'}</small></span><b>{state.ratings[s.id]?formatScore(average(s,state.ratings[s.id])):'—'}</b></button>)}</div><p className="fine-print">Die Scores stammen ausschließlich aus deinen Bewertungen. Ein gemeinsames Live-Ranking folgt später.</p></>}
- {view==='photos'&&<><PageHeading label="WINTER 2026" title="Momente" subtitle="Deine Fotos, deine Erinnerungen."/><div className="album-summary"><span><Camera size={17}/>{photos.length} eigene Fotos</span><button className="text-button" onClick={()=>openRating(current)}>Foto zum Stopp hinzufügen<ArrowUpRight size={15}/></button></div>{photos.length===0&&<div className="notice"><Camera size={22}/><div><strong>Dein erster Moment fehlt noch.</strong><p>Füge beim Bewerten ein Foto hinzu. Es erscheint hier mit dem passenden Stopp.</p></div></div>}<div className="masonry">{photos.map((p,i)=><Reveal key={p.id}><button className="album-photo" onClick={()=>setLightbox({src:p.src,label:`${p.stand.name} · ${p.name}`})}><img src={p.src} alt={`Tourfoto ${i+1} bei ${p.stand.name}`}/><span><strong>{p.stand.name}</strong><small>{p.name} · {p.archived?'Früherer Beispielstopp':'Deine Bewertung'}</small></span></button></Reveal>)}{[{src:asset('/illustrations/markt-abend.svg'),label:'Lichter am Markt'},{src:asset('/illustrations/tasse.svg'),label:'Auf einen warmen Abend'}].map(p=><Reveal key={p.src}><button className="album-photo sample" onClick={()=>setLightbox({src:p.src,label:`${p.label} · Beispielbild`})}><img src={p.src} alt={p.label}/><span><strong>{p.label}</strong><small>Beispielbild</small></span></button></Reveal>)}</div><p className="fine-print">Deine Fotos bleiben auf diesem Gerät gespeichert. Das gemeinsame Album folgt mit der Live-Version.</p></>}
- {view==='group'&&<><PageHeading label="GLÜHWEIN TOUR 26" title="Deine Runde" subtitle="Vier Leute. Eine Tour."/><div className="invite-card"><Sparkles size={23}/><span className="eyebrow">GLÜHWEIN TOUR 26</span><h2>GLUEH26</h2><p>Beispielcode für eure spätere gemeinsame Tour.</p><button className="secondary" onClick={async()=>{try{await navigator.clipboard.writeText('GLUEH26');notify('Beispielcode kopiert.')}catch{notify('Dein Beispielcode: GLUEH26')}}}><Copy size={16}/> Code kopieren</button></div><div className="section-heading"><h2>Die Runde</h2><span>Beispielgruppe</span></div>{[state.name,'Mia','Ben','Jule'].map((n,i)=><div className="person" key={i}><span className="avatar">{n.slice(0,1)}</span><div><strong>{n}</strong><small>{i===0?`${completed} von ${stands.length} Stopps bewertet`:'Beispielteilnehmer'}</small></div>{i===0&&<span className="next-tag">Du</span>}</div>)}<p className="fine-print">Ein gemeinsamer Beitritt und Live-Updates sind im Designprototyp noch nicht verbunden.</p><details className="sources"><summary>Standliste 2025 & Quellen</summary><p>Belegte Auswahl für eure Tour, keine vollständige Beschickerliste. Preise und exakte Standpositionen sind nicht gesichert. Für 2026 müssen die Stopps erneut geprüft werden.</p>{stands.map(s=><div key={s.id}><strong>{s.name} · {s.place}</strong>{s.sources.map(source=><p key={source.url}><a href={source.url} target="_blank" rel="noreferrer">{source.title}</a></p>)}</div>)}<p>Ortsbereiche: OpenStreetMap / Nominatim. Standliste recherchiert am 04.10.2026.</p></details>{legacyStands.some(s=>state.ratings[s.id])&&<details className="sources archived-ratings"><summary>Frühere Beispielbewertungen</summary><p>Deine alten Bewertungen bleiben erhalten und zählen nicht für die echten Stände. Fotos findest du unter Momente.</p>{legacyStands.filter(s=>state.ratings[s.id]).map(s=><p key={s.id}><strong>{s.name}</strong> · {formatScore(state.ratings[s.id].values.reduce((a,b)=>a+b,0)/state.ratings[s.id].values.length)} / 5{state.ratings[s.id].comment&&<span> · {state.ratings[s.id].comment}</span>}</p>)}</details>}<details className="sources"><summary>Fotos & verwendete Ressourcen</summary><p>Die Bilder sind eigene Illustrationen und zeigen keine echten Tourstände.</p><p><a href="https://reactbits.dev/" target="_blank" rel="noreferrer">React Bits: Fade Content</a> · Inter · Lucide · MapLibre / OpenFreeMap.</p></details></>}
- </main><footer className="app-footer"><Snowflake size={13}/><span>Glühwein Tour 26 · Lokal gespeichert</span></footer><nav className="bottom-nav" aria-label="Hauptnavigation">{nav.map(({id,label,icon:Icon})=><button key={id} onClick={()=>changeView(id)} className={view===id?'active':''} aria-current={view===id?'page':undefined}><Icon size={21}/><span>{label}</span>{view===id&&<i/>}</button>)}</nav>{choosingTheme&&<ThemePicker theme={theme} onChange={chooseTheme} onClose={()=>setChoosingTheme(false)}/>} {ratingStand&&<RatingSheet key={ratingStand.id} stand={ratingStand} rating={state.ratings[ratingStand.id]} onClose={()=>setRatingStand(null)} onSave={saveRating}/>}<dialog ref={photoDialog} className="lightbox" onCancel={()=>setLightbox(null)} aria-label="Fotoansicht"><button className="icon-button" aria-label="Foto schließen" onClick={()=>setLightbox(null)}><X/></button>{lightbox&&<><img src={lightbox.src} alt={lightbox.label}/><p>{lightbox.label}</p></>}</dialog><dialog ref={nameDialog} className="name-dialog" onCancel={()=>setEditingName(false)} aria-labelledby="name-heading"><form onSubmit={saveName}><div className="sheet-top"><h2 id="name-heading">Wie heißt du?</h2><button type="button" className="icon-button" aria-label="Namensänderung schließen" onClick={()=>setEditingName(false)}><X size={20}/></button></div><label>Dein Name<input value={nameDraft} onChange={e=>setNameDraft(e.target.value)} maxLength={30} required autoComplete="given-name"/></label><button className="primary" type="submit"><Check size={18}/> Namen speichern</button></form></dialog>{toast&&<div className="toast" role="status"><Check size={17}/>{toast}</div>}</div>
+import StandSheet from '../components/StandSheet';
+import Avatar from '../components/ui/Avatar';
+import CountUp from '../components/ui/CountUp';
+import ShinyText from '../components/ui/ShinyText';
+import SpotlightCard from '../components/ui/SpotlightCard';
+import Stars from '../components/ui/Stars';
+import { formatScore, stands, stopNumber, type Rating, type Stand } from '../lib/data';
+import { average, createStore, loadProfile, reviewId, saveProfile, type Profile, type Review, type ReviewStore } from '../lib/reviews';
+
+const TourMap = dynamic(() => import('../components/TourMap'), { ssr: false, loading: () => <div className="map-skeleton">Karte wird geladen …</div> });
+const WinterCup = dynamic(() => import('../components/WinterCup'), { ssr: false });
+const BackgroundScene = dynamic(() => import('../components/BackgroundScene'), { ssr: false });
+
+type View = 'tour' | 'ranking' | 'photos' | 'group';
+const nav: { id: View; label: string; icon: typeof Map }[] = [
+  { id: 'tour', label: 'Tour', icon: Map },
+  { id: 'ranking', label: 'Ranking', icon: Trophy },
+  { id: 'photos', label: 'Fotos', icon: Images },
+  { id: 'group', label: 'Gruppe', icon: Users },
+];
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+export default function Home() {
+  const [view, setView] = useState<View>('tour');
+  const [profile, setProfile] = useState<Profile>({ id: '', name: '' });
+  const profileRef = useRef(profile);
+  profileRef.current = profile;
+  const [store, setStore] = useState<ReviewStore | null>(null);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [loadError, setLoadError] = useState('');
+  const [selected, setSelected] = useState(stands[0].id);
+  const [openStand, setOpenStand] = useState<Stand | null>(null);
+  const [rateStand, setRateStand] = useState<Stand | null>(null);
+  const [askName, setAskName] = useState<null | (() => void)>(null);
+  const [nameDraft, setNameDraft] = useState('');
+  const [lightbox, setLightbox] = useState<{ src: string; label: string } | null>(null);
+  const [toast, setToast] = useState('');
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const photoDialog = useRef<HTMLDialogElement>(null), nameDialog = useRef<HTMLDialogElement>(null);
+
+  const notify = (message: string) => { setToast(message); clearTimeout(toastTimer.current); toastTimer.current = setTimeout(() => setToast(''), 3200); };
+
+  const refresh = useCallback(async (s: ReviewStore) => {
+    try { setReviews(await s.list()); setLoadError(''); }
+    catch { setLoadError('Bewertungen konnten gerade nicht geladen werden. Prüfe deine Verbindung.'); }
+  }, []);
+
+  useEffect(() => {
+    let unsubscribe = () => {};
+    (async () => {
+      const p = await loadProfile();
+      setProfile(p); profileRef.current = p;
+      const s = await createStore(() => profileRef.current);
+      setStore(s);
+      await refresh(s);
+      unsubscribe = s.subscribe(() => refresh(s));
+    })();
+    return () => { unsubscribe(); clearTimeout(toastTimer.current); };
+  }, [refresh]);
+
+  useEffect(() => { if (lightbox) photoDialog.current?.showModal(); else photoDialog.current?.close(); }, [lightbox]);
+  useEffect(() => { if (askName) nameDialog.current?.showModal(); else nameDialog.current?.close(); }, [askName]);
+
+  const byStand = useMemo(() => {
+    const m: Record<string, Review[]> = {};
+    for (const s of stands) m[s.id] = [];
+    for (const r of reviews) (m[r.standId] ||= []).push(r);
+    return m;
+  }, [reviews]);
+  const standAvg = (id: string) => average(byStand[id].map(r => average(r.values)));
+  const people = useMemo(() => {
+    const m: Record<string, { name: string; count: number; sum: number }> = {};
+    for (const r of reviews) { const e = (m[r.authorId] ||= { name: r.author, count: 0, sum: 0 }); e.count++; e.sum += average(r.values); }
+    return Object.entries(m).map(([id, e]) => ({ id, ...e, avg: e.sum / e.count })).sort((a, b) => b.count - a.count);
+  }, [reviews]);
+  const ownRated = useMemo(() => new Set(reviews.filter(r => r.authorId === profile.id).map(r => r.standId)), [reviews, profile.id]);
+  const ranked = useMemo(() => stands.filter(s => byStand[s.id].length).sort((a, b) => standAvg(b.id) - standAvg(a.id) || byStand[b.id].length - byStand[a.id].length), [byStand]); // eslint-disable-line react-hooks/exhaustive-deps
+  const photos = useMemo(() => reviews.flatMap(r => r.photos.map(p => ({ ...p, author: r.author, stand: stands.find(s => s.id === r.standId) }))).filter(p => p.stand), [reviews]);
+  const live = store?.mode === 'live';
+  const hint = live ? 'Deine Bewertung und Fotos sieht die ganze Gruppe.' : 'Noch nicht verbunden: Bewertung und Fotos bleiben vorerst auf diesem Gerät.';
+
+  function withName(next: () => void) {
+    if (profile.name.trim()) next();
+    else { setNameDraft(''); setAskName(() => next); }
+  }
+  function startRating(stand: Stand) { withName(() => setRateStand(stand)); }
+  async function saveRating(r: Rating) {
+    if (!store || !rateStand) return;
+    const review: Review = { id: reviewId(rateStand.id, profile.id), standId: rateStand.id, authorId: profile.id, author: profile.name.trim(), ...r };
+    await store.save(review);
+    await refresh(store);
+    notify('Bewertung gespeichert. Prost!');
+  }
+  function saveName(e: React.FormEvent) {
+    e.preventDefault();
+    const name = nameDraft.trim();
+    if (!name) return;
+    const p = { ...profile, name };
+    setProfile(p); profileRef.current = p; saveProfile(p);
+    const next = askName; setAskName(null);
+    next?.();
+  }
+  function changeView(v: View) { setView(v); window.scrollTo({ top: 0, behavior: 'instant' }); }
+  async function share() {
+    const url = location.href.split('#')[0];
+    try {
+      if (navigator.share) await navigator.share({ title: 'Glühwein Tour 26', url });
+      else { await navigator.clipboard.writeText(url); notify('Link kopiert.'); }
+    } catch {}
+  }
+  const ownRating = (s: Stand): Rating | undefined => { const r = byStand[s.id].find(x => x.authorId === profile.id); return r && { values: r.values, comment: r.comment, photos: r.photos, updated: r.updated }; };
+
+  return (
+    <div className="app">
+      <BackgroundScene />
+      <header className="topbar">
+        <span className="brand"><span className="brand-dot" />Glühwein Tour <b>26</b></span>
+        <button type="button" className={`sync ${live ? 'is-live' : ''}`} onClick={() => changeView('group')}>
+          {live ? <Wifi size={14} /> : <WifiOff size={14} />}{live ? 'Live' : 'Lokal'}
+        </button>
+      </header>
+
+      <main className="content">
+        {loadError && <p className="notice" role="alert">{loadError}</p>}
+
+        {view === 'tour' && <>
+          <section className="hero">
+            <div className="hero-copy">
+              <ShinyText>Bielefeld · Winter 2026</ShinyText>
+              <h1>Glühwein<br />Tour <em>26.</em></h1>
+              <p>Sieben Stopps durch die Altstadt. Probieren, bewerten, gemeinsam den Favoriten küren.</p>
+            </div>
+            <div className="hero-cup"><WinterCup /></div>
+          </section>
+
+          <section className="stats" aria-label="Stand der Tour">
+            <div><strong><CountUp value={stands.length} /></strong><span>Stände</span></div>
+            <div><strong><CountUp value={reviews.length} /></strong><span>{reviews.length === 1 ? 'Bewertung' : 'Bewertungen'}</span></div>
+            <div><strong><CountUp value={people.length} /></strong><span>{people.length === 1 ? 'Person' : 'Leute'} dabei</span></div>
+          </section>
+
+          <section className="card map-card">
+            <div className="card-head"><h2>Durch die Altstadt</h2><span className="pill">Standorte 2025</span></div>
+            <TourMap selected={selected} ratedIds={[...ownRated]} onSelect={id => { setSelected(id); }} />
+            <button type="button" className="map-selected" onClick={() => setOpenStand(stands.find(s => s.id === selected)!)}>
+              <span className="num">{stopNumber(selected)}</span>
+              <span><strong>{stands.find(s => s.id === selected)!.name}</strong><small>{plural(byStand[selected].length, 'Bewertung', 'Bewertungen')} · ansehen</small></span>
+              <ChevronRight size={18} />
+            </button>
+          </section>
+
+          <section>
+            <div className="section-head"><h2>Alle Stände</h2><span>{ownRated.size} / {stands.length} von dir bewertet</span></div>
+            <div className="stand-list">
+              {stands.map(s => {
+                const rs = byStand[s.id], avg = standAvg(s.id);
+                return (
+                  <SpotlightCard key={s.id} className="stand-card" onClick={() => setOpenStand(s)} label={`${s.name}, ${plural(rs.length, 'Bewertung', 'Bewertungen')}`}>
+                    <img src={s.image} alt="" />
+                    <span className="stand-main">
+                      <span className="stand-num">{stopNumber(s.id)}{ownRated.has(s.id) && <span className="done"><Check size={11} /> bewertet</span>}</span>
+                      <strong>{s.name}</strong>
+                      <small>{s.place} · {s.wine}</small>
+                      <span className="stand-meta">
+                        {rs.length ? <><Stars value={avg} size={12} /><b>{formatScore(avg)}</b></> : <span className="muted">Noch keine Bewertung</span>}
+                        <span className="count">{plural(rs.length, 'Bewertung', 'Bewertungen')}</span>
+                      </span>
+                    </span>
+                    {rs.length > 0 && <span className="stack">{rs.slice(0, 3).map(r => <Avatar key={r.id} name={r.author} size={22} />)}</span>}
+                  </SpotlightCard>
+                );
+              })}
+            </div>
+            <p className="fine">Sieben belegte Stopps aus 2025. Die Teilnahme 2026 ist noch nicht bestätigt. Die Bilder sind Illustrationen.</p>
+          </section>
+        </>}
+
+        {view === 'ranking' && <>
+          <PageHead label="Gruppenwertung" title="Ranking" sub="Durchschnitt aller Bewertungen der Gruppe." />
+          {ranked.length === 0 ? (
+            <div className="card empty-card"><Trophy size={30} /><h2>Noch kein Favorit</h2><p>Sobald jemand bewertet, entsteht hier das Ranking.</p><button type="button" className="btn primary" onClick={() => changeView('tour')}>Zu den Ständen</button></div>
+          ) : <>
+            <ol className="podium">
+              {ranked.slice(0, 3).map((s, i) => (
+                <li key={s.id} className={`place-${i + 1}`}>
+                  <button type="button" onClick={() => setOpenStand(s)}>
+                    <img src={s.image} alt="" />
+                    <span className="medal">{i + 1}</span>
+                    <strong>{s.name}</strong>
+                    <span className="podium-score"><CountUp value={standAvg(s.id)} decimals={1} /></span>
+                    <small>{plural(byStand[s.id].length, 'Bewertung', 'Bewertungen')}</small>
+                  </button>
+                </li>
+              ))}
+            </ol>
+            <ol className="rank-list" start={4}>
+              {ranked.slice(3).map((s, i) => (
+                <li key={s.id}><button type="button" onClick={() => setOpenStand(s)}><span className="rank">{i + 4}</span><span><strong>{s.name}</strong><small>{plural(byStand[s.id].length, 'Bewertung', 'Bewertungen')}</small></span><b>{formatScore(standAvg(s.id))}</b></button></li>
+              ))}
+            </ol>
+          </>}
+          {stands.length > ranked.length && <p className="fine">Noch ohne Bewertung: {stands.filter(s => !byStand[s.id].length).map(s => s.name).join(', ')}.</p>}
+        </>}
+
+        {view === 'photos' && <>
+          <PageHead label="Winter 2026" title="Momente" sub={photos.length ? plural(photos.length, 'Foto', 'Fotos') + ' aus der Gruppe' : 'Fotos aus euren Bewertungen erscheinen hier.'} />
+          {photos.length === 0 && <div className="card empty-card"><Camera size={30} /><h2>Noch keine Fotos</h2><p>Füge beim Bewerten ein Foto hinzu.</p></div>}
+          <div className="masonry">
+            {photos.map(p => (
+              <button key={p.id} type="button" className="photo" onClick={() => setLightbox({ src: p.src, label: `${p.stand!.name} · ${p.author}` })}>
+                <img src={p.src} alt={`${p.stand!.name}, Foto von ${p.author}`} /><span><strong>{p.stand!.name}</strong><small>{p.author}</small></span>
+              </button>
+            ))}
+          </div>
+        </>}
+
+        {view === 'group' && <>
+          <PageHead label="Eure Runde" title="Gruppe" sub={people.length ? `${plural(people.length, 'Person hat', 'Leute haben')} schon bewertet.` : 'Noch hat niemand bewertet.'} />
+          <section className="card me">
+            <Avatar name={profile.name || '?'} size={48} />
+            <div><small>Du bewertest als</small><strong>{profile.name || 'noch ohne Namen'}</strong></div>
+            <button type="button" className="btn ghost small" onClick={() => { setNameDraft(profile.name); setAskName(() => () => {}); }}>Ändern</button>
+          </section>
+          <section className={`card sync-card ${live ? 'is-live' : ''}`}>
+            {live ? <Wifi size={20} /> : <WifiOff size={20} />}
+            <div>
+              <strong>{live ? 'Live verbunden' : 'Nur auf diesem Gerät'}</strong>
+              <p>{live ? 'Neue Bewertungen der Gruppe erscheinen automatisch.' : 'Die gemeinsame Datenbank ist noch nicht eingerichtet. Bis dahin siehst du nur deine eigenen Bewertungen.'}</p>
+            </div>
+          </section>
+          <button type="button" className="btn primary wide" onClick={share}><Copy size={17} /> Freunde einladen</button>
+          {people.length > 0 && <ul className="people">
+            {people.map(p => <li key={p.id}><Avatar name={p.name} size={38} /><span className="person"><strong>{p.name}{p.id === profile.id && <span className="you">Du</span>}</strong><small>{plural(p.count, 'Stand', 'Stände')} bewertet · im Schnitt {formatScore(p.avg)}</small></span><span className="progress"><i style={{ width: `${(p.count / stands.length) * 100}%` }} /></span></li>)}
+          </ul>}
+          <details className="sources">
+            <summary>Standliste 2025 & Quellen</summary>
+            <p>Belegte Auswahl, keine vollständige Beschickerliste. Preise und genaue Standpositionen sind nicht gesichert. Für 2026 müssen die Stopps neu geprüft werden.</p>
+            {stands.map(s => <div key={s.id}><strong>{s.name} · {s.place}</strong>{s.sources.map(src => <a key={src.url} href={src.url} target="_blank" rel="noreferrer">{src.title}<ArrowUpRight size={12} /></a>)}</div>)}
+            <p>Karte: MapLibre, OpenFreeMap, OpenStreetMap. Bilder: eigene Illustrationen.</p>
+          </details>
+        </>}
+      </main>
+
+      <nav className="dock" aria-label="Hauptnavigation">
+        {nav.map(({ id, label, icon: Icon }) => (
+          <button key={id} type="button" className={view === id ? 'active' : ''} aria-current={view === id ? 'page' : undefined} onClick={() => changeView(id)}><Icon size={20} /><span>{label}</span></button>
+        ))}
+      </nav>
+
+      {openStand && <StandSheet key={openStand.id} stand={openStand} reviews={byStand[openStand.id]} ownId={profile.id} onClose={() => setOpenStand(null)} onRate={() => startRating(openStand)} onPhoto={(src, label) => setLightbox({ src, label })} />}
+      {rateStand && <RatingSheet key={rateStand.id} stand={rateStand} rating={ownRating(rateStand)} hint={hint} onClose={() => setRateStand(null)} onSave={saveRating} />}
+
+      <dialog ref={nameDialog} className="sheet name-dialog" aria-labelledby="name-title" onCancel={() => setAskName(null)}>
+        <form onSubmit={saveName}>
+          <div className="sheet-top"><h2 id="name-title">Wie heißt du?</h2><button type="button" className="icon-btn" aria-label="Schließen" onClick={() => setAskName(null)}><X size={20} /></button></div>
+          <p className="muted">So sieht die Gruppe, wer bewertet hat.</p>
+          <label htmlFor="name-input">Dein Name</label>
+          <input id="name-input" value={nameDraft} onChange={e => setNameDraft(e.target.value)} maxLength={30} required autoComplete="given-name" />
+          <button className="btn primary wide" type="submit"><Check size={18} /> Speichern</button>
+        </form>
+      </dialog>
+      <dialog ref={photoDialog} className="lightbox" aria-label="Foto" onCancel={() => setLightbox(null)} onClick={() => setLightbox(null)}>
+        <button type="button" className="icon-btn" aria-label="Foto schließen"><X /></button>
+        {lightbox && <><img src={lightbox.src} alt={lightbox.label} /><p>{lightbox.label}</p></>}
+      </dialog>
+      {toast && <div className="toast" role="status"><Check size={17} />{toast}</div>}
+    </div>
+  );
 }
-function PageHeading({label,title,subtitle}:{label:string;title:string;subtitle:string}){return <div className="page-heading"><span className="eyebrow">{label}</span><h1>{title}</h1><p>{subtitle}</p></div>}
+
+function PageHead({ label, title, sub }: { label: string; title: string; sub: string }) {
+  return <div className="page-head"><ShinyText>{label}</ShinyText><h1>{title}</h1><p>{sub}</p></div>;
+}

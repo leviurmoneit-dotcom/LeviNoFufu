@@ -1,12 +1,8 @@
 import type { Metadata, Viewport } from 'next';
-import '@fontsource-variable/inter';
+import '@fontsource-variable/fraunces';
+import '@fontsource-variable/instrument-sans';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import './globals.css';
-import './ios.css';
-import './themes.css';
-import './tour-details.css';
-import './atlas.css';
-import './motion.css';
+import './app.css';
 import PwaRegister from '../components/PwaRegister';
 import { asset } from '../lib/asset';
 export const metadata: Metadata = {
@@ -14,8 +10,8 @@ export const metadata: Metadata = {
   description: 'Deine winterliche Glühwein-Tour durch Bielefeld.',
   manifest: asset('/manifest.webmanifest'),
   icons: { icon: asset('/favicon.svg'), apple: asset('/apple-touch-icon.png') },
-  appleWebApp: { capable: true, title: 'Glühwein 26', statusBarStyle: 'default' },
+  appleWebApp: { capable: true, title: 'Glühwein 26', statusBarStyle: 'black-translucent' },
   formatDetection: { telephone: false },
 };
-export const viewport: Viewport = { width: 'device-width', initialScale: 1, themeColor: '#f7f8f3' };
+export const viewport: Viewport = { width: 'device-width', initialScale: 1, viewportFit: 'cover', themeColor: '#120e16' };
 export default function RootLayout({children}: Readonly<{children: React.ReactNode}>) { return <html lang="de"><body>{children}<PwaRegister /></body></html> }

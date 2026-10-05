@@ -1,6 +1,8 @@
 # Glühwein Tour 26
 
-Next.js 15, React 19, TypeScript, Tailwind CSS 4. Mobile-first Prototyp für eine Glühwein-Tour durch Bielefeld: Karte (MapLibre), Bewertungen und Fotos lokal in IndexedDB, vier wechselbare Looks (Winter Atlas, Studio, Noël, Afterglow), 3D-Tasse mit Three.js.
+Next.js 15, React 19, TypeScript, Tailwind CSS 4. Mobile-first Web-App für eine Glühwein-Tour durch Bielefeld: Karte (MapLibre), Gruppen-Bewertungen mit Fotos (Supabase, sonst lokal), Three.js-Hintergrund und 3D-Tasse.
+
+Live: https://leviurmoneit-dotcom.github.io/LeviNoFufu/
 
 ```
 pnpm install
@@ -8,6 +10,17 @@ pnpm dev        # http://127.0.0.1:5173
 pnpm build      # statischer Export nach ./out
 pnpm typecheck
 ```
+
+## Gemeinsame Bewertungen (Supabase)
+
+Ohne Datenbank speichert die App nur auf dem eigenen Gerät. Für die Gruppe:
+1. Kostenloses Projekt auf supabase.com anlegen.
+2. Im SQL-Editor `supabase/schema.sql` ausführen (Tabelle, Regeln, Foto-Bucket, Live-Updates).
+3. Unter Project Settings → API die Project URL und den `anon`-Key kopieren.
+4. In GitHub: Settings → Secrets and variables → Actions → Variables: `SUPABASE_URL` und `SUPABASE_ANON_KEY` anlegen.
+5. Den Pages-Workflow neu starten. Danach zeigt die App oben "Live".
+
+Der `anon`-Key ist für den Browser gedacht und darf öffentlich sein. Ohne Login kann jeder mit dem Link Bewertungen anlegen oder ändern, aber nicht löschen.
 
 ## Als App aufs Handy
 
@@ -29,5 +42,4 @@ Dieser Code wurde aus dem Drive-Ordner `gluehwein-tour-26` übernommen (Designpr
 
 ## Quellen
 
-- React Bits FadeContent (`components/FadeContent.tsx`), Lizenz: `REACT-BITS-LICENSE.md`
-- Karten: MapLibre GL JS, OpenFreeMap. Schrift: Inter (Fontsource). Icons: Lucide.
+- Karten: MapLibre GL JS, OpenFreeMap. Schrift: Fraunces und Instrument Sans (Fontsource, OFL). Icons: Lucide.
