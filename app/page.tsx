@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Map, Trophy, Images, Users, Wine, ArrowUpRight, ChevronRight, MapPin, Navigation, Star, LockKeyhole, Check, Sparkles, Copy, X, Camera, Pencil, Snowflake, Palette } from 'lucide-react';
+import { Map, Trophy, Images, Users, ArrowUpRight, ChevronRight, MapPin, Navigation, Star, LockKeyhole, Check, Sparkles, Copy, X, Camera, Snowflake, Palette } from 'lucide-react';
 import FadeContent from '../components/FadeContent';
 import RatingSheet from '../components/RatingSheet';
 import ThemePicker, { type ThemeId } from '../components/ThemePicker';

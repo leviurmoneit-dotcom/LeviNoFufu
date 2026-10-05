@@ -9,6 +9,17 @@ pnpm build      # statischer Export nach ./out
 pnpm typecheck
 ```
 
+## Als App aufs Handy
+
+Die Seite ist eine installierbare Web-App (Manifest, Icons, Offline-Cache). Nach dem Hosting:
+- **iPhone (Safari):** Teilen, "Zum Home-Bildschirm".
+- **Android (Chrome):** Menü, "App installieren".
+
+## Hosting
+
+Empfohlen: **Vercel** (Hobby-Plan, kostenlos). Repo verbinden, Framework "Next.js" wird erkannt, Build `pnpm build`. Jeder Push bekommt eine eigene Vorschau-URL. Die App liegt dort auf der Wurzel der Domain, deshalb funktionieren Pfade, Manifest und Offline-Cache ohne Anpassung. Alternative: Cloudflare Pages (Build `pnpm build`, Ausgabeordner `out`).
+GitHub Pages ist unpraktisch, weil es unter `/LeviNoFufu/` ausliefert und alle Pfade anpassen müsste.
+
 ## Stand des Imports
 
 Dieser Code wurde aus dem Drive-Ordner `gluehwein-tour-26` übernommen (Designprototyp v5). Typprüfung und Build laufen durch.

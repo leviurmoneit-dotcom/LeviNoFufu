@@ -11,7 +11,7 @@
 .season-note span{display:block}
 .shell[data-theme] .stop-copy{min-width:0;flex:1;text-align:left}
 .shell[data-theme] .stop-copy strong{white-space:normal}
-.shell[data-theme] .stand-extra{font-size:10px;line-height:1.5;align-items:flex-start}
+.shell[data-theme] .stand-extra{font-size:11px;line-height:1.5;align-items:flex-start}
 .shell[data-theme] .stand-extra>span:first-child{min-width:0}
 .shell[data-theme] .sources{font-size:11px;line-height:1.6;margin-top:20px}
 .shell[data-theme] .sources summary{min-height:44px;cursor:pointer}
@@ -28,3 +28,4 @@
 .shell[data-theme]{overflow-x:clip}
 .shell[data-theme='night'] .map canvas{filter:invert(1) hue-rotate(163deg) saturate(.55) brightness(1.8) contrast(.9)}
 @media(max-width:700px){.rating-dialog{width:100%;max-width:100%;margin:auto auto 0;border-radius:26px 26px 0 0;max-height:94dvh}}
+.map-fallback{padding-bottom:88px}
