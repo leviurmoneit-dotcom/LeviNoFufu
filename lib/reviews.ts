@@ -20,6 +20,9 @@ export interface ReviewStore {
   save(review: Review): Promise<void>;
   remove(review: Review): Promise<void>;
   subscribe(onChange: () => void): () => void;
+  /** Allen sagen, an welchem Stand die Truppe gerade ist. */
+  shareHere(standId: string, by: string): void;
+  onHere(listener: (standId: string, by: string) => void): () => void;
 }
 
 const GROUP_KEY = 'glueh26-group';
@@ -92,6 +95,8 @@ function localStore(profile: () => Profile): ReviewStore {
       listeners.forEach(l => l());
     },
     subscribe(onChange) { listeners.add(onChange); return () => listeners.delete(onChange); },
+    shareHere() {},
+    onHere() { return () => {}; },
   };
 }
 const toReview = (standId: string, r: Rating, p: Profile): Review => ({
@@ -110,7 +115,19 @@ async function liveStore(url: string, key: string, group: string, profile: () =>
   // Postgres-Änderungen kommen wegen der Header-Regel nicht per Realtime an, daher Broadcast im Gruppenkanal.
   const channel = db.channel(`gruppe-${group}`);
   const listeners = new Set<() => void>();
-  channel.on('broadcast', { event: 'changed' }, () => listeners.forEach(l => l())).subscribe();
+  const hereListeners = new Set<(standId: string, by: string) => void>();
+  let here: { standId: string; by: string } | null = null;
+  const send = (event: string, payload: object) => channel.send({ type: 'broadcast', event, payload });
+  channel
+    .on('broadcast', { event: 'changed' }, () => listeners.forEach(l => l()))
+    .on('broadcast', { event: 'here' }, ({ payload }) => {
+      if (typeof payload?.standId !== 'string') return;
+      here = { standId: payload.standId, by: String(payload.by || '') };
+      hereListeners.forEach(l => l(here!.standId, here!.by));
+    })
+    // Wer neu dazukommt, fragt nach dem aktuellen Stand der Truppe.
+    .on('broadcast', { event: 'where' }, () => { if (here) send('here', here); })
+    .subscribe(status => { if (status === 'SUBSCRIBED') send('where', {}); });
   const announce = () => channel.send({ type: 'broadcast', event: 'changed', payload: {} });
   return {
     mode: 'live',
@@ -154,6 +171,8 @@ async function liveStore(url: string, key: string, group: string, profile: () =>
       const poll = setInterval(focus, 60_000);
       return () => { listeners.delete(onChange); clearInterval(poll); document.removeEventListener('visibilitychange', focus); };
     },
+    shareHere(standId, by) { here = { standId, by }; send('here', here); },
+    onHere(listener) { hereListeners.add(listener); return () => hereListeners.delete(listener); },
   };
 }
 

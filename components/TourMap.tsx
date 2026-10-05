@@ -1,9 +1,48 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import maplibregl from 'maplibre-gl';
-import { LocateFixed, RotateCcw } from 'lucide-react';
+import { Footprints, LoaderCircle, LocateFixed, RotateCcw, X } from 'lucide-react';
 import { stands, stopNumber } from '../lib/data';
+
+type LngLat = [number, number];
+export type RouteRequest = { to: string; from: string; n: number };
+type RouteInfo = { status: 'loading' } | { status: 'ready'; line: LngLat[]; meters: number; seconds: number; note: string } | { status: 'error'; note: string };
+
 const tourBounds = () => stands.reduce((bounds, stand) => bounds.extend(stand.coords), new maplibregl.LngLatBounds());
+const coordsOf = (id: string) => stands.find(s => s.id === id)!.coords as LngLat;
+function meters(a: LngLat, b: LngLat) {
+  const r = 6371000, rad = Math.PI / 180;
+  const dLat = (b[1] - a[1]) * rad, dLng = (b[0] - a[0]) * rad;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a[1] * rad) * Math.cos(b[1] * rad) * Math.sin(dLng / 2) ** 2;
+  return 2 * r * Math.asin(Math.sqrt(h));
+}
+const fmtDistance = (m: number) => (m < 950 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1).replace('.', ',')} km`);
+const fmtMinutes = (s: number) => `${Math.max(1, Math.round(s / 60))} Min`;
+
+function position(): Promise<LngLat | null> {
+  return new Promise(resolve => {
+    if (!navigator.geolocation) return resolve(null);
+    // Eigene Frist: Solange die Standort-Abfrage offen ist, greift der Browser-Timeout nicht.
+    const giveUp = setTimeout(() => resolve(null), 10000);
+    navigator.geolocation.getCurrentPosition(
+      p => { clearTimeout(giveUp); resolve([p.coords.longitude, p.coords.latitude]); },
+      () => { clearTimeout(giveUp); resolve(null); },
+      { timeout: 8000, maximumAge: 30000, enableHighAccuracy: true });
+  });
+}
+/** Fußweg über den OSRM-Server der FOSSGIS (OpenStreetMap). Ohne Netz: Luftlinie. */
+async function walkingRoute(from: LngLat, to: LngLat): Promise<{ line: LngLat[]; meters: number; seconds: number; exact: boolean }> {
+  try {
+    const ctrl = new AbortController(), t = setTimeout(() => ctrl.abort(), 8000);
+    const res = await fetch(`https://routing.openstreetmap.de/routed-foot/route/v1/foot/${from.join(',')};${to.join(',')}?overview=full&geometries=geojson`, { signal: ctrl.signal });
+    clearTimeout(t);
+    const route = (await res.json()).routes?.[0];
+    if (route) return { line: route.geometry.coordinates, meters: route.distance, seconds: route.distance / 1.25, exact: true };
+  } catch {}
+  const m = meters(from, to);
+  return { line: [from, to], meters: m, seconds: (m * 1.3) / 1.25, exact: false };
+}
 
 type Pt = { id: string; x: number; y: number; ox: number; oy: number };
 function layoutStands(w: number, h: number): Pt[] {
@@ -34,7 +73,7 @@ function layoutStands(w: number, h: number): Pt[] {
   }
   return pts;
 }
-function SchemeMap({ selected, ratedIds, onSelect }: { selected: string; ratedIds: string[]; onSelect: (id: string) => void }) {
+function SchemeMap({ selected, current, ratedIds, onSelect }: { selected: string; current: string; ratedIds: string[]; onSelect: (id: string) => void }) {
   const box = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
   useEffect(() => {
@@ -54,20 +93,163 @@ function SchemeMap({ selected, ratedIds, onSelect }: { selected: string; ratedId
       </svg>
       {pts.map(p => {
         const s = stands.find(x => x.id === p.id)!;
-        return <button key={p.id} type="button" className={`map-marker scheme-marker${p.id === selected ? ' selected' : ''}${ratedIds.includes(p.id) ? ' visited' : ''}`}
+        return <button key={p.id} type="button" className={`map-marker scheme-marker${p.id === selected ? ' selected' : ''}${p.id === current ? ' current' : ''}${ratedIds.includes(p.id) ? ' visited' : ''}`}
           style={{ left: p.x, top: p.y }} aria-label={`${s.name} auswählen`} aria-pressed={p.id === selected} onClick={() => onSelect(p.id)}>{stopNumber(p.id)}</button>;
       })}
       <p className="scheme-note">Keine Kartenkacheln. Schema der Standorte.</p>
     </div>
   );
 }
-export default function TourMap({selected,ratedIds,onSelect}:{selected:string;ratedIds:string[];onSelect:(id:string)=>void}) {
- const host=useRef<HTMLDivElement>(null),map=useRef<maplibregl.Map|null>(null),markers=useRef<maplibregl.Marker[]>([]),select=useRef(onSelect),locationMarker=useRef<maplibregl.Marker|null>(null);
- const [failed,setFailed]=useState(false),[loaded,setLoaded]=useState(false),[locationNote,setLocationNote]=useState(''),[locating,setLocating]=useState(false);
- select.current=onSelect;
- useEffect(()=>{if(!host.current)return;let m:maplibregl.Map;let timer:ReturnType<typeof setTimeout>;try{m=new maplibregl.Map({container:host.current,style:'https://tiles.openfreemap.org/styles/positron',center:stands[0].coords,zoom:16.7,attributionControl:{compact:true},pitch:0});map.current=m;m.scrollZoom.disable();timer=setTimeout(()=>{if(!m.loaded())setFailed(true)},18000);m.on('load',()=>{clearTimeout(timer);setLoaded(true);setFailed(false);for(const layer of m.getStyle().layers){if(layer.type==='background')m.setPaintProperty(layer.id,'background-color','#f3eee4');if(layer.type==='fill'&&/park|landcover|landuse/.test(layer.id))m.setPaintProperty(layer.id,'fill-color','#dde4d4');}stands.forEach(s=>{const button=document.createElement('button');button.className='map-marker';button.textContent=stopNumber(s.id);button.setAttribute('aria-label',`${s.name} auf Karte auswählen`);button.onclick=()=>select.current(s.id);const marker=new maplibregl.Marker({element:button,anchor:'center'}).setLngLat(s.coords).addTo(m);markers.current.push(marker)});});m.on('error',()=>{if(!m.isStyleLoaded())setFailed(true)});}catch{setFailed(true)}return()=>{clearTimeout(timer);markers.current.forEach(x=>x.remove());markers.current=[];map.current?.remove();map.current=null}},[]);
- useEffect(()=>{markers.current.forEach((marker,i)=>{const el=marker.getElement();el.classList.toggle('selected',stands[i].id===selected);el.classList.toggle('visited',!!ratedIds.includes(stands[i].id));el.setAttribute('aria-pressed',String(stands[i].id===selected))});},[selected,ratedIds,loaded]);
- useEffect(()=>{const stop=stands.find(s=>s.id===selected);if(loaded&&stop)map.current?.easeTo({center:stop.coords,zoom:16.7,duration:matchMedia('(prefers-reduced-motion: reduce)').matches?0:450})},[selected,loaded]);
- function locate(){if(!navigator.geolocation){setLocationNote('Standort ist hier nicht verfügbar. Alle Stopps bleiben auf der Karte.');return}setLocating(true);navigator.geolocation.getCurrentPosition(p=>{setLocating(false);setLocationNote('Dein Standort wird nur auf diesem Gerät angezeigt.');if(!map.current)return;locationMarker.current?.remove();locationMarker.current=new maplibregl.Marker({color:'#407864'}).setLngLat([p.coords.longitude,p.coords.latitude]).addTo(map.current);map.current.easeTo({center:[p.coords.longitude,p.coords.latitude],zoom:15})},()=>{setLocating(false);setLocationNote('Standort nicht verfügbar. Wähle deinen nächsten Stopp direkt auf der Karte.')},{timeout:10000})}
- return <div className="map-wrap"><div ref={host} className="map" aria-label="Interaktive Karte der Weihnachtsmarkt-Stopps aus 2025 in Bielefeld"/><div className="map-label"><span className="live-dot"/> Bielefeld, Innenstadt</div>{!loaded&&!failed&&<div className="map-loading">Deine Tourkarte wird geladen …</div>}{failed&&<SchemeMap selected={selected} ratedIds={ratedIds} onSelect={onSelect}/>}{!failed&&<div className="map-tools"><button aria-label="Meinen Standort anzeigen" disabled={locating||failed} onClick={locate}><LocateFixed size={19}/></button><button aria-label="Alle Tourstopps anzeigen" disabled={failed} onClick={()=>map.current?.fitBounds(tourBounds(),{padding:{top:28,bottom:45,left:30,right:30},maxZoom:15,duration:0})}><RotateCcw size={18}/></button></div>}<div className="map-legend"><span><i className="gold"/>Ausgewählt</span><span><i className="green"/>Bewertet</span><span><i/>Offen</span></div>{locationNote&&<p className="location-note" role="status">{locationNote}</p>}</div>
+
+export default function TourMap({ selected, current, ratedIds, route, onSelect, onRouteClose }: {
+  selected: string; current: string; ratedIds: string[]; route: RouteRequest | null;
+  onSelect: (id: string) => void; onRouteClose: () => void;
+}) {
+  const host = useRef<HTMLDivElement>(null), map = useRef<maplibregl.Map | null>(null);
+  const markers = useRef<maplibregl.Marker[]>([]), select = useRef(onSelect), me = useRef<maplibregl.Marker | null>(null);
+  const [failed, setFailed] = useState(false), [loaded, setLoaded] = useState(false);
+  const [overlay, setOverlay] = useState<HTMLElement | null>(null), [frame, setFrame] = useState(0);
+  const [note, setNote] = useState(''), [locating, setLocating] = useState(false);
+  const [info, setInfo] = useState<RouteInfo | null>(null);
+  select.current = onSelect;
+
+  useEffect(() => {
+    if (!host.current) return;
+    let m: maplibregl.Map, timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      m = new maplibregl.Map({
+        container: host.current, style: 'https://tiles.openfreemap.org/styles/positron', center: stands[0].coords, zoom: 16.2,
+        attributionControl: { compact: true }, pitch: 0, dragRotate: false, touchPitch: false,
+        // Ein Finger scrollt die Seite, zwei Finger bewegen die Karte.
+        cooperativeGestures: true,
+        locale: {
+          'CooperativeGesturesHandler.MobileHelpText': 'Mit zwei Fingern die Karte bewegen',
+          'CooperativeGesturesHandler.WindowsHelpText': 'Strg + Scrollen zum Zoomen',
+          'CooperativeGesturesHandler.MacHelpText': '⌘ + Scrollen zum Zoomen',
+        },
+      });
+      map.current = m;
+      timer = setTimeout(() => { if (!m.loaded()) setFailed(true); }, 18000);
+      m.on('load', () => {
+        clearTimeout(timer); setLoaded(true); setFailed(false);
+        for (const layer of m.getStyle().layers) {
+          if (layer.type === 'background') m.setPaintProperty(layer.id, 'background-color', '#f3eee4');
+          if (layer.type === 'fill' && /park|landcover|landuse/.test(layer.id)) m.setPaintProperty(layer.id, 'fill-color', '#dde4d4');
+        }
+        // Linien als SVG über der Karte, damit der Dunkel-Filter der Kacheln sie nicht verfärbt.
+        const svg = document.createElement('div');
+        svg.className = 'map-overlay';
+        m.getCanvasContainer().insertBefore(svg, m.getCanvas().nextSibling);
+        setOverlay(svg);
+        stands.forEach(s => {
+          const button = document.createElement('button');
+          button.className = 'map-marker';
+          button.textContent = stopNumber(s.id);
+          button.setAttribute('aria-label', `${s.name} auf Karte auswählen`);
+          button.onclick = () => select.current(s.id);
+          markers.current.push(new maplibregl.Marker({ element: button, anchor: 'center' }).setLngLat(s.coords).addTo(m));
+        });
+        m.fitBounds(tourBounds(), { padding: 40, maxZoom: 16.5, duration: 0 });
+      });
+      m.on('move', () => setFrame(f => f + 1));
+      m.on('error', () => { if (!m.isStyleLoaded()) setFailed(true); });
+    } catch { setFailed(true); }
+    return () => { clearTimeout(timer); markers.current.forEach(x => x.remove()); markers.current = []; map.current?.remove(); map.current = null; };
+  }, []);
+
+  useEffect(() => {
+    markers.current.forEach((marker, i) => {
+      const el = marker.getElement(), id = stands[i].id;
+      el.classList.toggle('selected', id === selected);
+      el.classList.toggle('current', id === current);
+      el.classList.toggle('visited', ratedIds.includes(id));
+      el.setAttribute('aria-pressed', String(id === selected));
+    });
+  }, [selected, current, ratedIds, loaded]);
+
+  useEffect(() => {
+    if (!loaded || route) return;
+    map.current?.easeTo({ center: coordsOf(selected), duration: matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 450 });
+  }, [selected, loaded]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function showMe(at: LngLat) {
+    if (!map.current) return;
+    me.current?.remove();
+    const dot = document.createElement('span');
+    dot.className = 'me-dot';
+    me.current = new maplibregl.Marker({ element: dot }).setLngLat(at).addTo(map.current);
+  }
+
+  useEffect(() => {
+    if (!route) { setInfo(null); return; }
+    let cancelled = false;
+    setInfo({ status: 'loading' });
+    (async () => {
+      const target = coordsOf(route.to);
+      const here = await position();
+      let from: LngLat | null = here, note = '';
+      if (here && meters(here, target) > 4000) { from = null; note = 'Du bist weiter weg. '; }
+      if (!from) {
+        if (route.from === route.to) {
+          if (!cancelled) setInfo({ status: 'error', note: here ? 'Du bist mehr als 4 km entfernt. Die Route startet, sobald du in der Altstadt bist.' : 'Standort nicht verfügbar. Erlaube den Standort, um die Route zu sehen.' });
+          return;
+        }
+        from = coordsOf(route.from);
+        note += `Route ab Stopp ${stopNumber(route.from)}.`;
+      } else showMe(from);
+      const r = await walkingRoute(from, target);
+      if (cancelled) return;
+      if (!r.exact) note = (note + ' Ohne Netz: Luftlinie.').trim();
+      setInfo({ status: 'ready', line: r.line, meters: r.meters, seconds: r.seconds, note });
+      if (map.current && loaded) {
+        const b = r.line.reduce((acc, p) => acc.extend(p), new maplibregl.LngLatBounds(r.line[0], r.line[0]));
+        map.current.fitBounds(b, { padding: { top: 40, bottom: 90, left: 40, right: 40 }, maxZoom: 17, duration: 500 });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [route?.n, loaded]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function locate() {
+    setLocating(true);
+    const at = await position();
+    setLocating(false);
+    if (!at) { setNote('Standort nicht verfügbar. Wähle deinen Stopp direkt auf der Karte.'); return; }
+    setNote('');
+    showMe(at);
+    map.current?.easeTo({ center: at, zoom: 16.5 });
+  }
+
+  const path = (line: LngLat[]) => {
+    const m = map.current;
+    if (!m) return '';
+    return line.map((p, i) => { const q = m.project(p); return `${i ? 'L' : 'M'}${q.x.toFixed(1)},${q.y.toFixed(1)}`; }).join('');
+  };
+  const tourLine = stands.map(s => s.coords as LngLat);
+  void frame;
+
+  return (
+    <div className="map-wrap">
+      <div ref={host} className="map" aria-label="Karte der Weihnachtsmarkt-Stopps in Bielefeld" />
+      {overlay && createPortal(
+        <svg className="map-lines" aria-hidden="true">
+          <path d={path(tourLine)} className="tour-line" />
+          {info?.status === 'ready' && <><path d={path(info.line)} className="route-casing" /><path d={path(info.line)} className="route-line" /></>}
+        </svg>, overlay)}
+      {!loaded && !failed && <div className="map-loading">Karte wird geladen …</div>}
+      {failed && <SchemeMap selected={selected} current={current} ratedIds={ratedIds} onSelect={onSelect} />}
+      {!failed && !info && <div className="map-tools">
+        <button type="button" aria-label="Meinen Standort anzeigen" disabled={locating} onClick={locate}>{locating ? <LoaderCircle className="spin" size={18} /> : <LocateFixed size={19} />}</button>
+        <button type="button" aria-label="Alle Tourstopps anzeigen" onClick={() => map.current?.fitBounds(tourBounds(), { padding: 40, maxZoom: 16.5, duration: 400 })}><RotateCcw size={18} /></button>
+      </div>}
+      {info && route && <div className="route-panel" role="status">
+        <Footprints size={18} />
+        <span>
+          <strong>{info.status === 'loading' ? 'Route wird berechnet …' : info.status === 'ready' ? `${fmtMinutes(info.seconds)} · ${fmtDistance(info.meters)}` : 'Keine Route'}</strong>
+          <small>{info.status === 'ready' ? (info.note || `Zu Fuß zu Stopp ${stopNumber(route.to)}`) : info.status === 'error' ? info.note : `Zu Stopp ${stopNumber(route.to)}`}</small>
+        </span>
+        <button type="button" className="icon-btn" aria-label="Route schließen" onClick={onRouteClose}><X size={18} /></button>
+      </div>}
+      {note && <p className="location-note" role="status">{note}</p>}
+    </div>
+  );
 }

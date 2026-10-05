@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { ArrowUpRight, Camera, Check, ChevronRight, Copy, Images, Map, Trophy, Users, Wifi, WifiOff, X } from 'lucide-react';
+import { ArrowUpRight, Camera, Check, ChevronRight, Copy, Images, MapPin, Map, PartyPopper, Star, Trophy, Users, Wifi, WifiOff, X } from 'lucide-react';
 import RatingSheet from '../components/RatingSheet';
 import StandSheet from '../components/StandSheet';
 import Avatar from '../components/ui/Avatar';
@@ -10,6 +10,7 @@ import ShinyText from '../components/ui/ShinyText';
 import SpotlightCard from '../components/ui/SpotlightCard';
 import Stars from '../components/ui/Stars';
 import { formatScore, stands, stopNumber, type Rating, type Stand } from '../lib/data';
+import type { RouteRequest } from '../components/TourMap';
 import { average, createStore, inviteLink, liveConfigured, loadGroupCode, loadProfile, newGroupCode, normalizeCode, reviewId, saveGroupCode, saveProfile, type Profile, type Review, type ReviewStore } from '../lib/reviews';
 
 const TourMap = dynamic(() => import('../components/TourMap'), { ssr: false, loading: () => <div className="map-skeleton">Karte wird geladen …</div> });
@@ -24,6 +25,10 @@ const nav: { id: View; label: string; icon: typeof Map }[] = [
   { id: 'group', label: 'Gruppe', icon: Users },
 ];
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+const standById = (id: string) => stands.find(s => s.id === id)!;
+const CURRENT_KEY = 'glueh26-current';
+function loadCurrent() { try { const id = localStorage.getItem(CURRENT_KEY) || ''; return stands.some(s => s.id === id) ? id : ''; } catch { return ''; } }
+function saveCurrent(id: string) { try { localStorage.setItem(CURRENT_KEY, id); } catch {} }
 
 export default function Home() {
   const [view, setView] = useState<View>('tour');
@@ -38,6 +43,9 @@ export default function Home() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loadError, setLoadError] = useState('');
   const [selected, setSelected] = useState(stands[0].id);
+  const [current, setCurrent] = useState('');
+  const [route, setRoute] = useState<RouteRequest | null>(null);
+  const [firstName, setFirstName] = useState(false);
   const [openStand, setOpenStand] = useState<Stand | null>(null);
   const [rateStand, setRateStand] = useState<Stand | null>(null);
   const [askName, setAskName] = useState<null | (() => void)>(null);
@@ -59,13 +67,22 @@ export default function Home() {
     const s = await createStore(() => profileRef.current, code);
     setStore(s);
     await refresh(s);
-    unsubscribeRef.current = s.subscribe(() => refresh(s));
+    const offChange = s.subscribe(() => refresh(s));
+    const offHere = s.onHere((id, by) => {
+      if (!stands.some(x => x.id === id)) return;
+      setCurrent(id); saveCurrent(id); setSelected(id);
+      notify(`${by || 'Jemand'}: Wir sind jetzt bei ${standById(id).name}.`);
+    });
+    unsubscribeRef.current = () => { offChange(); offHere(); };
   }, [refresh]);
 
   useEffect(() => {
     (async () => {
       const p = await loadProfile();
       setProfile(p); profileRef.current = p;
+      if (!p.name.trim()) { setFirstName(true); setNameDraft(''); setAskName(() => () => {}); }
+      const c = loadCurrent();
+      if (c) { setCurrent(c); setSelected(c); }
       const code = loadGroupCode();
       setGroup(code);
       if (liveConfigured() && !code) { setGate(true); return; }
@@ -79,6 +96,12 @@ export default function Home() {
     if (c.length < 6) return;
     saveGroupCode(c); setGroup(c); setGate(false);
     await connect(c);
+  }
+
+  async function foundGroup() {
+    const code = newGroupCode();
+    shareInvite(code); // vor dem ersten await, damit das Teilen-Menü als Nutzeraktion zählt
+    await joinGroup(code);
   }
 
   useEffect(() => { if (lightbox) photoDialog.current?.showModal(); else photoDialog.current?.close(); }, [lightbox]);
@@ -99,6 +122,13 @@ export default function Home() {
   const ownRated = useMemo(() => new Set(reviews.filter(r => r.authorId === profile.id).map(r => r.standId)), [reviews, profile.id]);
   const ranked = useMemo(() => stands.filter(s => byStand[s.id].length).sort((a, b) => standAvg(b.id) - standAvg(a.id) || byStand[b.id].length - byStand[a.id].length), [byStand]); // eslint-disable-line react-hooks/exhaustive-deps
   const photos = useMemo(() => reviews.flatMap(r => r.photos.map(p => ({ ...p, author: r.author, stand: stands.find(s => s.id === r.standId) }))).filter(p => p.stand), [reviews]);
+  const now = current || stands.find(s => !ownRated.has(s.id))?.id || stands[0].id;
+  const nowStand = standById(now);
+  const nowIndex = stands.findIndex(s => s.id === now);
+  const after = [...stands.slice(nowIndex + 1), ...stands.slice(0, nowIndex)];
+  const nextStand = after.find(s => !ownRated.has(s.id)) || after[0];
+  const allDone = ownRated.size === stands.length;
+  const groupSize = people.length;
   const live = store?.mode === 'live';
   const hint = live ? 'Deine Bewertung und Fotos sieht die ganze Gruppe.' : 'Noch nicht verbunden: Bewertung und Fotos bleiben vorerst auf diesem Gerät.';
 
@@ -107,10 +137,22 @@ export default function Home() {
     else { setNameDraft(''); setAskName(() => next); }
   }
   function startRating(stand: Stand) { withName(() => setRateStand(stand)); }
+  function moveHere(id: string) {
+    setCurrent(id); saveCurrent(id); setSelected(id);
+    store?.shareHere(id, profile.name.trim());
+    notify(live ? `Alle sehen jetzt: ${standById(id).name}.` : `Jetzt hier: ${standById(id).name}.`);
+  }
+  function startRoute(id: string) {
+    setOpenStand(null); setView('tour'); setSelected(id);
+    setRoute({ to: id, from: now, n: Date.now() });
+    setTimeout(() => document.getElementById('map-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80);
+  }
   async function saveRating(r: Rating) {
     if (!store || !rateStand) return;
     const review: Review = { id: reviewId(rateStand.id, profile.id), standId: rateStand.id, authorId: profile.id, author: profile.name.trim(), ...r };
     await store.save(review);
+    // Der Stand bleibt "Jetzt hier", bis jemand auf "Weiter" tippt.
+    if (!current) { setCurrent(rateStand.id); saveCurrent(rateStand.id); }
     await refresh(store);
     notify('Bewertung gespeichert. Prost!');
   }
@@ -125,12 +167,13 @@ export default function Home() {
     if (!name) return;
     const p = { ...profile, name };
     setProfile(p); profileRef.current = p; saveProfile(p);
-    const next = askName; setAskName(null);
+    const next = askName; setAskName(null); setFirstName(false);
     next?.();
   }
   function changeView(v: View) { setView(v); window.scrollTo({ top: 0, behavior: 'instant' }); }
-  async function share() {
-    const url = group ? inviteLink(group) : location.href.split('#')[0];
+  const share = () => shareInvite(group);
+  async function shareInvite(code: string) {
+    const url = code ? inviteLink(code) : location.href.split('#')[0];
     try {
       if (navigator.share) await navigator.share({ title: 'Glühwein Tour 26', url });
       else { await navigator.clipboard.writeText(url); notify('Link kopiert.'); }
@@ -158,7 +201,7 @@ export default function Home() {
             <input id="code-input" value={codeDraft} onChange={e => setCodeDraft(e.target.value.toUpperCase())} placeholder="GLUEH-XXXXXX" autoComplete="off" autoCapitalize="characters" spellCheck={false} />
             <button type="submit" className="btn primary wide" disabled={normalizeCode(codeDraft).length < 6}>Beitreten</button>
           </form>
-          <button type="button" className="btn ghost wide" onClick={() => joinGroup(newGroupCode())}>Neue Gruppe gründen</button>
+          <button type="button" className="btn ghost wide" onClick={foundGroup}>Neue Gruppe gründen & Link teilen</button>
           {group && <button type="button" className="btn ghost wide" onClick={() => setGate(false)}>Abbrechen</button>}
         </section>}
         {!gate && loadError && <p className="notice" role="alert">{loadError}</p>}
@@ -179,12 +222,12 @@ export default function Home() {
             <div><strong><CountUp value={people.length} /></strong><span>{people.length === 1 ? 'Person' : 'Leute'} dabei</span></div>
           </section>
 
-          <section className="card map-card">
-            <div className="card-head"><h2>Durch die Altstadt</h2><span className="pill">Standorte 2025</span></div>
-            <TourMap selected={selected} ratedIds={[...ownRated]} onSelect={id => { setSelected(id); }} />
-            <button type="button" className="map-selected" onClick={() => setOpenStand(stands.find(s => s.id === selected)!)}>
+          <section className="card map-card" id="map-card">
+            <div className="card-head"><h2>Durch die Altstadt</h2><span className="pill">Karte: 2 Finger</span></div>
+            <TourMap selected={selected} current={now} ratedIds={[...ownRated]} route={route} onSelect={id => { setSelected(id); }} onRouteClose={() => setRoute(null)} />
+            <button type="button" className="map-selected" onClick={() => setOpenStand(standById(selected))}>
               <span className="num">{stopNumber(selected)}</span>
-              <span><strong>{stands.find(s => s.id === selected)!.name}</strong><small>{plural(byStand[selected].length, 'Bewertung', 'Bewertungen')} · ansehen</small></span>
+              <span><strong>{standById(selected).name}{selected === now && <em className="here-tag">Jetzt hier</em>}</strong><small>{plural(byStand[selected].length, 'Bewertung', 'Bewertungen')} · ansehen</small></span>
               <ChevronRight size={18} />
             </button>
           </section>
@@ -193,12 +236,13 @@ export default function Home() {
             <div className="section-head"><h2>Alle Stände</h2><span>{ownRated.size} / {stands.length} von dir bewertet</span></div>
             <div className="stand-list">
               {stands.map(s => {
-                const rs = byStand[s.id], avg = standAvg(s.id);
+                const rs = byStand[s.id], avg = standAvg(s.id), done = ownRated.has(s.id);
+                const everyone = groupSize > 1 && rs.length >= groupSize;
                 return (
-                  <SpotlightCard key={s.id} className="stand-card" onClick={() => setOpenStand(s)} label={`${s.name}, ${plural(rs.length, 'Bewertung', 'Bewertungen')}`}>
-                    <img src={s.image} alt="" />
+                  <SpotlightCard key={s.id} className={`stand-card${done ? ' is-done' : ''}${s.id === now ? ' is-now' : ''}`} onClick={() => setOpenStand(s)} label={`${s.name}, ${plural(rs.length, 'Bewertung', 'Bewertungen')}`}>
+                    <span className="stand-thumb"><img src={s.image} alt="" />{done && <span className="tick" aria-hidden="true"><Check size={22} strokeWidth={3} /></span>}</span>
                     <span className="stand-main">
-                      <span className="stand-num">{stopNumber(s.id)}{ownRated.has(s.id) && <span className="done"><Check size={11} /> bewertet</span>}</span>
+                      <span className="stand-num">{stopNumber(s.id)}{s.id === now && <span className="here-tag">Jetzt hier</span>}{done && <span className="done"><Check size={11} /> abgehakt</span>}{everyone && <span className="done all">alle durch</span>}</span>
                       <strong>{s.name}</strong>
                       <small>{s.place} · {s.wine}</small>
                       <span className="stand-meta">
@@ -286,19 +330,31 @@ export default function Home() {
         </>}
       </main>
 
+      {!gate && <div className="now-bar" aria-label="Aktueller Stand">
+        <button type="button" className="now-info" onClick={() => setOpenStand(nowStand)}>
+          <span className="now-num">{stopNumber(now)}</span>
+          <span><small><MapPin size={11} /> Jetzt hier</small><strong>{nowStand.name}</strong></span>
+        </button>
+        {!ownRated.has(now)
+          ? <button type="button" className="btn primary small" onClick={() => startRating(nowStand)}><Star size={15} /> Bewerten</button>
+          : allDone
+            ? <button type="button" className="btn ghost small" onClick={() => changeView('ranking')}><PartyPopper size={15} /> Ranking</button>
+            : <button type="button" className="btn ghost small" onClick={() => moveHere(nextStand.id)}>Weiter: {stopNumber(nextStand.id)} <ChevronRight size={15} /></button>}
+      </div>}
+
       {!gate && <nav className="dock" aria-label="Hauptnavigation">
         {nav.map(({ id, label, icon: Icon }) => (
           <button key={id} type="button" className={view === id ? 'active' : ''} aria-current={view === id ? 'page' : undefined} onClick={() => changeView(id)}><Icon size={20} /><span>{label}</span></button>
         ))}
       </nav>}
 
-      {openStand && <StandSheet key={openStand.id} stand={openStand} reviews={byStand[openStand.id]} ownId={profile.id} onClose={() => setOpenStand(null)} onRate={() => startRating(openStand)} onDelete={deleteRating} onPhoto={(src, label) => setLightbox({ src, label })} />}
-      {rateStand && <RatingSheet key={rateStand.id} stand={rateStand} rating={ownRating(rateStand)} hint={hint} onClose={() => setRateStand(null)} onSave={saveRating} />}
+      {openStand && <StandSheet key={openStand.id} stand={openStand} reviews={byStand[openStand.id]} ownId={profile.id} isCurrent={openStand.id === now} onHere={() => moveHere(openStand.id)} onRoute={() => startRoute(openStand.id)} onClose={() => setOpenStand(null)} onRate={() => { const s = openStand; setOpenStand(null); startRating(s); }} onDelete={deleteRating} onPhoto={(src, label) => setLightbox({ src, label })} />}
+      {rateStand && <RatingSheet key={rateStand.id} stand={rateStand} rating={ownRating(rateStand)} hint={hint} current={rateStand.id === now ? undefined : nowStand} onSwitch={() => { setRateStand(null); startRating(nowStand); }} onClose={() => setRateStand(null)} onSave={saveRating} />}
 
-      <dialog ref={nameDialog} className="sheet name-dialog" aria-labelledby="name-title" onCancel={() => setAskName(null)}>
+      <dialog ref={nameDialog} className="sheet name-dialog" aria-labelledby="name-title" onCancel={e => { if (firstName) e.preventDefault(); else setAskName(null); }}>
         <form onSubmit={saveName}>
-          <div className="sheet-top"><h2 id="name-title">Wie heißt du?</h2><button type="button" className="icon-btn" aria-label="Schließen" onClick={() => setAskName(null)}><X size={20} /></button></div>
-          <p className="muted">So sieht die Gruppe, wer bewertet hat.</p>
+          <div className="sheet-top"><h2 id="name-title">{firstName ? 'Hi! Wie heißt du?' : 'Wie heißt du?'}</h2>{!firstName && <button type="button" className="icon-btn" aria-label="Schließen" onClick={() => setAskName(null)}><X size={20} /></button>}</div>
+          <p className="muted">So sieht die Gruppe, wer bewertet hat. Du kannst den Namen später unter „Gruppe“ ändern.</p>
           <label htmlFor="name-input">Dein Name</label>
           <input id="name-input" value={nameDraft} onChange={e => setNameDraft(e.target.value)} maxLength={30} required autoComplete="given-name" />
           <button className="btn primary wide" type="submit"><Check size={18} /> Speichern</button>
