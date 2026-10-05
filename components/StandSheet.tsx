@@ -1,6 +1,6 @@
 'use client';
-import { useEffect, useRef } from 'react';
-import { ArrowUpRight, Navigation, Pencil, Star, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { ArrowUpRight, Navigation, Pencil, Star, Trash2, X } from 'lucide-react';
 import { criteria, formatScore, stopNumber, type Stand } from '../lib/data';
 import { average, type Review } from '../lib/reviews';
 import Avatar from './ui/Avatar';
@@ -9,11 +9,12 @@ import Stars from './ui/Stars';
 
 const dateFmt = new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
-export default function StandSheet({ stand, reviews, ownId, onRate, onPhoto, onClose }: {
+export default function StandSheet({ stand, reviews, ownId, onRate, onDelete, onPhoto, onClose }: {
   stand: Stand; reviews: Review[]; ownId: string;
-  onRate: () => void; onPhoto: (src: string, label: string) => void; onClose: () => void;
+  onRate: () => void; onDelete: (review: Review) => Promise<void>; onPhoto: (src: string, label: string) => void; onClose: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const [confirming, setConfirming] = useState(false);
   useEffect(() => {
     const el = dialog.current, overflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -71,6 +72,13 @@ export default function StandSheet({ stand, reviews, ownId, onRate, onPhoto, onC
               </header>
               <ul className="chips">{criteria.map((c, i) => <li key={c}>{c} <b>{r.values[i]}</b></li>)}</ul>
               {r.comment && <p className="review-comment">{r.comment}</p>}
+              {r.authorId === ownId && (
+                <div className="review-own">
+                  {confirming
+                    ? <><span>Bewertung wirklich löschen?</span><button type="button" className="btn ghost small" onClick={() => setConfirming(false)}>Behalten</button><button type="button" className="btn danger small" onClick={async () => { await onDelete(r); setConfirming(false); }}>Löschen</button></>
+                    : <button type="button" className="link-btn" onClick={() => setConfirming(true)}><Trash2 size={14} /> Meine Bewertung löschen</button>}
+                </div>
+              )}
               {r.photos.length > 0 && (
                 <div className="review-photos">
                   {r.photos.map((p, i) => <button key={p.id} type="button" onClick={() => onPhoto(p.src, `${stand.name} · ${r.author}`)}><img src={p.src} alt={`Foto ${i + 1} von ${r.author}`} /></button>)}

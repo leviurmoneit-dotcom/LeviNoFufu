@@ -323,3 +323,19 @@ textarea { min-height: 84px; resize: vertical; }
   .stats strong { font-size: 24px; }
   .criteria-bars li { grid-template-columns: 8em 1fr 2em; }
 }
+
+/* Gruppencode */
+.gate { display: grid; gap: 14px; padding-top: 24px; }
+.gate h1 { font-size: 44px; line-height: 1; }
+.gate > p { color: var(--muted); }
+.gate-form { display: grid; gap: 10px; padding: 18px; margin-top: 6px; }
+.gate-form label { font-size: 13px; font-weight: 600; }
+.gate-form input { width: 100%; padding: 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 18px; letter-spacing: .08em; font-variant-numeric: lining-nums; }
+.code-card { display: flex; align-items: center; gap: 14px; padding: 16px; }
+.code-card > div { flex: 1; display: grid; }
+.code-card small { color: var(--muted); font-size: 12px; }
+.code-card strong { font-size: 20px; letter-spacing: .08em; color: var(--amber); }
+.review-own { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.review-own span { margin-right: auto; }
+.link-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 4px; border: 0; background: none; color: var(--muted); font-size: 13px; text-decoration: underline; text-underline-offset: 3px; }
+.btn.danger { background: var(--cranberry); color: #fff; }

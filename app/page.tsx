@@ -10,7 +10,7 @@ import ShinyText from '../components/ui/ShinyText';
 import SpotlightCard from '../components/ui/SpotlightCard';
 import Stars from '../components/ui/Stars';
 import { formatScore, stands, stopNumber, type Rating, type Stand } from '../lib/data';
-import { average, createStore, loadProfile, reviewId, saveProfile, type Profile, type Review, type ReviewStore } from '../lib/reviews';
+import { average, createStore, inviteLink, liveConfigured, loadGroupCode, loadProfile, newGroupCode, normalizeCode, reviewId, saveGroupCode, saveProfile, type Profile, type Review, type ReviewStore } from '../lib/reviews';
 
 const TourMap = dynamic(() => import('../components/TourMap'), { ssr: false, loading: () => <div className="map-skeleton">Karte wird geladen …</div> });
 const WinterCup = dynamic(() => import('../components/WinterCup'), { ssr: false });
@@ -31,6 +31,10 @@ export default function Home() {
   const profileRef = useRef(profile);
   profileRef.current = profile;
   const [store, setStore] = useState<ReviewStore | null>(null);
+  const [group, setGroup] = useState('');
+  const [gate, setGate] = useState(false);
+  const [codeDraft, setCodeDraft] = useState('');
+  const unsubscribeRef = useRef<() => void>(() => {});
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loadError, setLoadError] = useState('');
   const [selected, setSelected] = useState(stands[0].id);
@@ -50,18 +54,32 @@ export default function Home() {
     catch { setLoadError('Bewertungen konnten gerade nicht geladen werden. Prüfe deine Verbindung.'); }
   }, []);
 
+  const connect = useCallback(async (code: string) => {
+    unsubscribeRef.current();
+    const s = await createStore(() => profileRef.current, code);
+    setStore(s);
+    await refresh(s);
+    unsubscribeRef.current = s.subscribe(() => refresh(s));
+  }, [refresh]);
+
   useEffect(() => {
-    let unsubscribe = () => {};
     (async () => {
       const p = await loadProfile();
       setProfile(p); profileRef.current = p;
-      const s = await createStore(() => profileRef.current);
-      setStore(s);
-      await refresh(s);
-      unsubscribe = s.subscribe(() => refresh(s));
+      const code = loadGroupCode();
+      setGroup(code);
+      if (liveConfigured() && !code) { setGate(true); return; }
+      await connect(code);
     })();
-    return () => { unsubscribe(); clearTimeout(toastTimer.current); };
-  }, [refresh]);
+    return () => { unsubscribeRef.current(); clearTimeout(toastTimer.current); };
+  }, [connect]);
+
+  async function joinGroup(code: string) {
+    const c = normalizeCode(code);
+    if (c.length < 6) return;
+    saveGroupCode(c); setGroup(c); setGate(false);
+    await connect(c);
+  }
 
   useEffect(() => { if (lightbox) photoDialog.current?.showModal(); else photoDialog.current?.close(); }, [lightbox]);
   useEffect(() => { if (askName) nameDialog.current?.showModal(); else nameDialog.current?.close(); }, [askName]);
@@ -96,6 +114,11 @@ export default function Home() {
     await refresh(store);
     notify('Bewertung gespeichert. Prost!');
   }
+  async function deleteRating(review: Review) {
+    if (!store) return;
+    try { await store.remove(review); await refresh(store); notify('Bewertung gelöscht.'); }
+    catch { notify('Löschen hat nicht geklappt. Bitte erneut versuchen.'); }
+  }
   function saveName(e: React.FormEvent) {
     e.preventDefault();
     const name = nameDraft.trim();
@@ -107,7 +130,7 @@ export default function Home() {
   }
   function changeView(v: View) { setView(v); window.scrollTo({ top: 0, behavior: 'instant' }); }
   async function share() {
-    const url = location.href.split('#')[0];
+    const url = group ? inviteLink(group) : location.href.split('#')[0];
     try {
       if (navigator.share) await navigator.share({ title: 'Glühwein Tour 26', url });
       else { await navigator.clipboard.writeText(url); notify('Link kopiert.'); }
@@ -126,9 +149,21 @@ export default function Home() {
       </header>
 
       <main className="content">
-        {loadError && <p className="notice" role="alert">{loadError}</p>}
+        {gate && <section className="gate">
+          <ShinyText>Willkommen</ShinyText>
+          <h1>Eure Runde<br />beitreten.</h1>
+          <p>Gib den Gruppencode ein, den du per Link oder Nachricht bekommen hast. Oder gründe eine neue Gruppe und lade deine Leute ein.</p>
+          <form className="card gate-form" onSubmit={e => { e.preventDefault(); joinGroup(codeDraft); }}>
+            <label htmlFor="code-input">Gruppencode</label>
+            <input id="code-input" value={codeDraft} onChange={e => setCodeDraft(e.target.value.toUpperCase())} placeholder="GLUEH-XXXXXX" autoComplete="off" autoCapitalize="characters" spellCheck={false} />
+            <button type="submit" className="btn primary wide" disabled={normalizeCode(codeDraft).length < 6}>Beitreten</button>
+          </form>
+          <button type="button" className="btn ghost wide" onClick={() => joinGroup(newGroupCode())}>Neue Gruppe gründen</button>
+          {group && <button type="button" className="btn ghost wide" onClick={() => setGate(false)}>Abbrechen</button>}
+        </section>}
+        {!gate && loadError && <p className="notice" role="alert">{loadError}</p>}
 
-        {view === 'tour' && <>
+        {!gate && view === 'tour' && <>
           <section className="hero">
             <div className="hero-copy">
               <ShinyText>Bielefeld · Winter 2026</ShinyText>
@@ -180,7 +215,7 @@ export default function Home() {
           </section>
         </>}
 
-        {view === 'ranking' && <>
+        {!gate && view === 'ranking' && <>
           <PageHead label="Gruppenwertung" title="Ranking" sub="Durchschnitt aller Bewertungen der Gruppe." />
           {ranked.length === 0 ? (
             <div className="card empty-card"><Trophy size={30} /><h2>Noch kein Favorit</h2><p>Sobald jemand bewertet, entsteht hier das Ranking.</p><button type="button" className="btn primary" onClick={() => changeView('tour')}>Zu den Ständen</button></div>
@@ -207,7 +242,7 @@ export default function Home() {
           {stands.length > ranked.length && <p className="fine">Noch ohne Bewertung: {stands.filter(s => !byStand[s.id].length).map(s => s.name).join(', ')}.</p>}
         </>}
 
-        {view === 'photos' && <>
+        {!gate && view === 'photos' && <>
           <PageHead label="Winter 2026" title="Momente" sub={photos.length ? plural(photos.length, 'Foto', 'Fotos') + ' aus der Gruppe' : 'Fotos aus euren Bewertungen erscheinen hier.'} />
           {photos.length === 0 && <div className="card empty-card"><Camera size={30} /><h2>Noch keine Fotos</h2><p>Füge beim Bewerten ein Foto hinzu.</p></div>}
           <div className="masonry">
@@ -219,7 +254,7 @@ export default function Home() {
           </div>
         </>}
 
-        {view === 'group' && <>
+        {!gate && view === 'group' && <>
           <PageHead label="Eure Runde" title="Gruppe" sub={people.length ? `${plural(people.length, 'Person hat', 'Leute haben')} schon bewertet.` : 'Noch hat niemand bewertet.'} />
           <section className="card me">
             <Avatar name={profile.name || '?'} size={48} />
@@ -233,7 +268,12 @@ export default function Home() {
               <p>{live ? 'Neue Bewertungen der Gruppe erscheinen automatisch.' : 'Die gemeinsame Datenbank ist noch nicht eingerichtet. Bis dahin siehst du nur deine eigenen Bewertungen.'}</p>
             </div>
           </section>
+          {live && group && <section className="card code-card">
+            <div><small>Gruppencode</small><strong className="tabular">{group}</strong></div>
+            <button type="button" className="btn ghost small" onClick={() => { setCodeDraft(''); setGate(true); }}>Wechseln</button>
+          </section>}
           <button type="button" className="btn primary wide" onClick={share}><Copy size={17} /> Freunde einladen</button>
+          {live && <p className="fine">Der Einladungslink enthält euren Gruppencode. Wer ihn hat, kann mitbewerten.</p>}
           {people.length > 0 && <ul className="people">
             {people.map(p => <li key={p.id}><Avatar name={p.name} size={38} /><span className="person"><strong>{p.name}{p.id === profile.id && <span className="you">Du</span>}</strong><small>{plural(p.count, 'Stand', 'Stände')} bewertet · im Schnitt {formatScore(p.avg)}</small></span><span className="progress"><i style={{ width: `${(p.count / stands.length) * 100}%` }} /></span></li>)}
           </ul>}
@@ -246,13 +286,13 @@ export default function Home() {
         </>}
       </main>
 
-      <nav className="dock" aria-label="Hauptnavigation">
+      {!gate && <nav className="dock" aria-label="Hauptnavigation">
         {nav.map(({ id, label, icon: Icon }) => (
           <button key={id} type="button" className={view === id ? 'active' : ''} aria-current={view === id ? 'page' : undefined} onClick={() => changeView(id)}><Icon size={20} /><span>{label}</span></button>
         ))}
-      </nav>
+      </nav>}
 
-      {openStand && <StandSheet key={openStand.id} stand={openStand} reviews={byStand[openStand.id]} ownId={profile.id} onClose={() => setOpenStand(null)} onRate={() => startRating(openStand)} onPhoto={(src, label) => setLightbox({ src, label })} />}
+      {openStand && <StandSheet key={openStand.id} stand={openStand} reviews={byStand[openStand.id]} ownId={profile.id} onClose={() => setOpenStand(null)} onRate={() => startRating(openStand)} onDelete={deleteRating} onPhoto={(src, label) => setLightbox({ src, label })} />}
       {rateStand && <RatingSheet key={rateStand.id} stand={rateStand} rating={ownRating(rateStand)} hint={hint} onClose={() => setRateStand(null)} onSave={saveRating} />}
 
       <dialog ref={nameDialog} className="sheet name-dialog" aria-labelledby="name-title" onCancel={() => setAskName(null)}>

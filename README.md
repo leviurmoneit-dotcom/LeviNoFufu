@@ -20,7 +20,7 @@ Ohne Datenbank speichert die App nur auf dem eigenen Gerät. Für die Gruppe:
 4. In GitHub: Settings → Secrets and variables → Actions → Variables: `SUPABASE_URL` und `SUPABASE_ANON_KEY` anlegen.
 5. Den Pages-Workflow neu starten. Danach zeigt die App oben "Live".
 
-Der `anon`-Key ist für den Browser gedacht und darf öffentlich sein. Ohne Login kann jeder mit dem Link Bewertungen anlegen oder ändern, aber nicht löschen.
+Der `anon`-Key ist für den Browser gedacht und darf öffentlich sein. Geschützt wird über den Gruppencode: Beim ersten Öffnen tritt man einer Gruppe bei oder gründet eine. Der Code reist als Header mit, die Datenbank (Row Level Security) liefert nur Einträge dieser Gruppe. Der Einladungslink in der App enthält den Code (`#g=CODE`).
 
 ## Als App aufs Handy
 
