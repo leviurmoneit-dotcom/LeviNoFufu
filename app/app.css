@@ -746,3 +746,65 @@ li.ok .guide-icon { background: rgba(var(--pine-rgb), .16); color: var(--pine); 
 .design-test strong { color: var(--ink); margin-right: auto; }
 .design-test button { min-height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); font-weight: 700; font-size: 13px; }
 .design-test button.active { background: var(--amber); border-color: var(--amber); color: var(--amber-ink); }
+
+/* ═════════ TEST-DESIGN „mutig“ (aktiv mit ?design=mutig; enthält alle „neu“-Regeln) ═════════ */
+.cup-ring, .cup-count, .crown, .pedestal, .rank-bars { display: none; }
+
+/* 1 · Hero als Bühne: Tasse groß in der Mitte, Fortschrittsring drumherum, Titel darunter */
+[data-bold] .hero { grid-template-columns: 1fr; justify-items: center; text-align: center; min-height: 0; gap: 4px; }
+[data-bold] .hero-cup { order: -1; width: 280px; height: 300px; margin: 0 auto; }
+[data-bold] .winter-cup { inset: 14px 6px 40px 14px; }
+[data-bold] .cup-ring { display: block; position: absolute; left: 50%; top: 4px; width: 252px; height: 252px; transform: translateX(-50%) rotate(-90deg); overflow: visible; }
+[data-bold] .cup-ring-track { fill: none; stroke: rgba(var(--ink-rgb), .1); stroke-width: 2.5; }
+[data-bold] .cup-ring-fill { fill: none; stroke: var(--pine); stroke-width: 3.5; stroke-linecap: round; transition: stroke-dasharray .8s cubic-bezier(.2, .8, .2, 1); filter: drop-shadow(0 0 6px rgba(var(--pine-rgb), .45)); }
+[data-bold] .cup-count { display: inline-block; position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); padding: 6px 14px; border-radius: 999px; background: rgba(var(--panel-rgb), .85); border: 1px solid var(--line); font-size: 13px; color: var(--muted); white-space: nowrap; }
+[data-bold] .cup-count b { font: 600 18px var(--display); color: var(--amber); margin-right: 2px; font-variant-numeric: lining-nums; }
+[data-bold] .hero-copy { justify-items: center; }
+[data-bold] .hero h1 { font-size: clamp(40px, 12vw, 60px); }
+[data-bold] .slogan { text-align: center; max-width: 26ch; }
+[data-bold] .progress-card { display: none; }
+
+/* 2 · Karte randlos über die volle Breite */
+[data-bold] .map-card { margin: 0 -16px; border-radius: 0; border-left: 0; border-right: 0; background: rgba(var(--panel-rgb), .55); }
+[data-bold] .map-card .card-head { padding: 18px 16px 12px; }
+[data-bold] .map-wrap { height: 320px; }
+[data-bold] .map-selected { padding-right: 16px; }
+[data-bold] .map-selected-main { padding-left: 16px; }
+
+/* 3 · Standkarten mit großem Bild oben */
+[data-bold] .stand-list { gap: 16px; }
+[data-bold] .stand-card { position: relative; flex-direction: column; align-items: stretch; gap: 0; padding: 0; overflow: hidden; }
+[data-bold] .stand-thumb { width: 100%; }
+[data-bold] .stand-thumb > img { width: 100%; height: auto; aspect-ratio: 16 / 9; border-radius: 0; object-fit: cover; object-position: center 62%; }
+[data-bold] .tick svg { width: 52px; height: 52px; padding: 10px; }
+[data-bold] .stand-main { padding: 14px 16px 16px; }
+[data-bold] .stand-main strong { font-size: 19px; }
+[data-bold] .stand-card .stack { position: absolute; top: 12px; right: 12px; flex-direction: row; }
+[data-bold] .stand-card .stack .avatar + .avatar { margin: 0 0 0 -8px; }
+
+/* 4 · Ranking als Siegertreppchen + Balkenliste */
+[data-bold] .podium { gap: 8px; margin-top: 18px; }
+[data-bold] .podium li { display: flex; flex-direction: column; justify-content: flex-end; }
+[data-bold] .podium button, [data-bold] .podium .place-1 button { position: relative; background: none; border: 0; padding: 0 4px 10px; gap: 4px; box-shadow: none; }
+[data-bold] .podium img { width: 76px; height: 76px; border-radius: 50%; border: 3px solid rgba(var(--ink-rgb), .2); }
+[data-bold] .podium .place-1 img { width: 96px; height: 96px; border-color: var(--amber); box-shadow: 0 0 0 6px rgba(var(--accent-rgb), .15); }
+[data-bold] .podium .medal { display: none; }
+[data-bold] .crown { display: block; position: absolute; top: -26px; left: 50%; transform: translateX(-50%) rotate(-8deg); color: var(--amber); animation: crown-bob 2.6s ease-in-out infinite; }
+@keyframes crown-bob { 50% { transform: translateX(-50%) translateY(-4px) rotate(6deg); } }
+[data-bold] .podium-score { font-size: 26px; }
+[data-bold] .podium .place-1 .podium-score { font-size: 34px; }
+[data-bold] .pedestal { display: grid; place-items: center; border-radius: 14px 14px 4px 4px; background: linear-gradient(rgba(var(--ink-rgb), .14), rgba(var(--ink-rgb), .04)); border: 1px solid var(--line); border-bottom: 0; font: 600 30px var(--display); color: rgba(var(--ink-rgb), .55); }
+[data-bold] .place-1 .pedestal { height: 96px; background: linear-gradient(rgba(var(--accent-rgb), .45), rgba(var(--accent-rgb), .1)); color: var(--amber-ink); border-color: rgba(var(--accent-rgb), .5); }
+[data-bold] .place-2 .pedestal { height: 66px; }
+[data-bold] .place-3 .pedestal { height: 44px; font-size: 24px; }
+[data-bold] .rank-list { display: none; }
+[data-bold] .rank-bars { display: grid; gap: 8px; list-style: none; margin: 8px 0 0; padding: 0; }
+[data-bold] .rank-bars button { width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; border: 1px solid var(--line); background: rgba(var(--panel-rgb), .74); color: var(--ink); text-align: left; }
+[data-bold] .rank-bars li:first-child button { border-color: rgba(var(--accent-rgb), .5); }
+[data-bold] .rank-bars .rank { width: 26px; flex: none; font: 600 18px var(--display); color: var(--muted); text-align: center; }
+[data-bold] .rank-bar-main { flex: 1; min-width: 0; display: grid; gap: 6px; }
+[data-bold] .rank-bar-main strong { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-bold] .rank-bar-main i { height: 8px; border-radius: 99px; background: rgba(var(--ink-rgb), .1); overflow: hidden; }
+[data-bold] .rank-bar-main i b { display: block; height: 100%; border-radius: 99px; background: var(--amber); }
+[data-bold] .rank-bars > li > button > b { flex: none; font: 600 22px var(--display); color: var(--amber); font-variant-numeric: lining-nums; }
+@media (prefers-reduced-motion: reduce) { [data-bold] .crown { animation: none; } }

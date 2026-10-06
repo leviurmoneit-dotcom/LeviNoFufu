@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { ArrowUpRight, BookOpen, Camera, Download, Navigation, KeyRound, Shield, Check, ChevronRight, Copy, Images, MapPin, Map, PartyPopper, Star, Trophy, Users, Wifi, WifiOff, X } from 'lucide-react';
+import { ArrowUpRight, BookOpen, Camera, Crown, Download, Navigation, KeyRound, Shield, Check, ChevronRight, Copy, Images, MapPin, Map, PartyPopper, Star, Trophy, Users, Wifi, WifiOff, X } from 'lucide-react';
 import RatingSheet from '../components/RatingSheet';
 import StandSheet from '../components/StandSheet';
 import Guide, { ThemePicker } from '../components/Guide';
@@ -79,7 +79,7 @@ export default function Home() {
   const [seen, setSeen] = useState<string[]>([]);
   const [pickNext, setPickNext] = useState(false);
   const [noseOpen, setNoseOpen] = useState(false);
-  const [designTest, setDesignTest] = useState<'alt' | 'neu' | ''>('');
+  const [designTest, setDesignTest] = useState<'alt' | 'neu' | 'mutig' | ''>('');
   const [intro, setIntro] = useState(false);
   const [slogan, setSlogan] = useState(0);
   const [flashLive, setFlashLive] = useState(false);
@@ -155,7 +155,7 @@ export default function Home() {
         if (p.name.trim() && !localStorage.getItem(GUIDE_KEY)) setGuide(true);
       } catch {}
       setSlogan(Math.floor(Math.random() * slogans.length));
-      try { const d = localStorage.getItem(DESIGN_KEY); if (d === 'neu' || d === 'alt') setDesignTest(d); } catch {}
+      try { const d = localStorage.getItem(DESIGN_KEY); if (d === 'neu' || d === 'alt' || d === 'mutig') setDesignTest(d); } catch {}
       try { if (!localStorage.getItem(INTRO_KEY) && !matchMedia('(prefers-reduced-motion: reduce)').matches) setIntro(true); } catch {}
       const c = loadCurrent();
       if (c) { setCurrent(c); setSelected(c); }
@@ -256,10 +256,13 @@ export default function Home() {
     notify('Admin-Bereich freigeschaltet.');
   }
   function leaveAdmin() { saveAdminKey(group, ''); setAdminKey(''); setView('group'); connect(group); }
-  function switchDesign(d: 'alt' | 'neu') {
+  function switchDesign(d: 'alt' | 'neu' | 'mutig') {
     setDesignTest(d);
     try { localStorage.setItem(DESIGN_KEY, d); } catch {}
-    if (d === 'neu') document.documentElement.dataset.design = 'neu'; else delete document.documentElement.dataset.design;
+    const root = document.documentElement;
+    if (d === 'alt') delete root.dataset.design; else root.dataset.design = 'neu';
+    if (d === 'mutig') root.dataset.bold = '1'; else delete root.dataset.bold;
+    window.dispatchEvent(new Event('resize')); // Tasse und Karte an neue Größe anpassen
   }
   function finishIntro() { setIntro(false); try { localStorage.setItem(INTRO_KEY, '1'); } catch {} }
   function closeGuide() { setGuide(false); try { localStorage.setItem(GUIDE_KEY, '1'); } catch {} }
@@ -349,7 +352,14 @@ export default function Home() {
               <button type="button" className="slogan" onClick={() => setSlogan(i => (i + 1) % slogans.length)} aria-label="Nächster Spruch">{slogans[slogan]}</button>
               {isNose && <button type="button" className="nose-btn" onClick={() => setNoseOpen(true)}><span aria-hidden="true">👃</span> Nasenmeister-Ansage</button>}
             </div>
-            <div className="hero-cup"><WinterCup variant={themeById(theme).cup} /></div>
+            <div className="hero-cup">
+              <svg className="cup-ring" viewBox="0 0 100 100" aria-hidden="true">
+                <circle cx="50" cy="50" r="46" className="cup-ring-track" />
+                <circle cx="50" cy="50" r="46" className="cup-ring-fill" pathLength={100} strokeDasharray={`${(ownRated.size / stands.length) * 100} 100`} />
+              </svg>
+              <WinterCup variant={themeById(theme).cup} />
+              <span className="cup-count"><b>{ownRated.size}</b> von {stands.length} Stopps</span>
+            </div>
           </section>
 
           <section className="progress-card" aria-label="Fortschritt der Tour">
@@ -409,12 +419,23 @@ export default function Home() {
                 <li key={s.id} className={`place-${i + 1}`}>
                   <button type="button" onClick={() => setOpenStand(s)}>
                     <img src={s.image} alt="" />
+                    {i === 0 && <span className="crown" aria-hidden="true"><Crown size={22} /></span>}
                     <span className="medal">{i + 1}</span>
                     <strong>{s.name}</strong>
                     <span className="podium-score"><CountUp value={standAvg(s.id)} decimals={1} /></span>
                     <small>{plural(byStand[s.id].length, 'Bewertung', 'Bewertungen')}</small>
                   </button>
+                  <span className="pedestal" aria-hidden="true">{i + 1}</span>
                 </li>
+              ))}
+            </ol>
+            <ol className="rank-bars" aria-label="Alle Stände im Vergleich">
+              {ranked.map((s, i) => (
+                <li key={s.id}><button type="button" onClick={() => setOpenStand(s)}>
+                  <span className="rank">{i + 1}</span>
+                  <span className="rank-bar-main"><strong>{s.name}</strong><i><b style={{ width: `${(standAvg(s.id) / 5) * 100}%` }} /></i></span>
+                  <b>{formatScore(standAvg(s.id))}</b>
+                </button></li>
               ))}
             </ol>
             <ol className="rank-list" start={4}>
@@ -474,6 +495,7 @@ export default function Home() {
             <strong>Design-Test</strong>
             <button type="button" className={designTest === 'alt' ? 'active' : ''} aria-pressed={designTest === 'alt'} onClick={() => switchDesign('alt')}>Alt</button>
             <button type="button" className={designTest === 'neu' ? 'active' : ''} aria-pressed={designTest === 'neu'} onClick={() => switchDesign('neu')}>Neu</button>
+            <button type="button" className={designTest === 'mutig' ? 'active' : ''} aria-pressed={designTest === 'mutig'} onClick={() => switchDesign('mutig')}>Mutig</button>
           </div>}
           <section className="card design-card">
             <div className="card-head"><h2>Design</h2><span className="pill">nur auf deinem Handy</span></div>
