@@ -313,7 +313,7 @@ export default function Home() {
         {!gate && view === 'tour' && <>
           <section className="hero">
             <div className="hero-copy">
-              <ShinyText>Bielefeld · 19.11.–30.12.2026</ShinyText>
+              <ShinyText>Bielefeld · 19.11.–30.12.</ShinyText>
               <h1>Glühwein<br />Tour <em>26.</em></h1>
               <p>Sieben Stopps durch die Altstadt. Probieren, bewerten, gemeinsam den Favoriten küren.</p>
               {isNose && <button type="button" className="nose-btn" onClick={() => setNoseOpen(true)}><span aria-hidden="true">👃</span> Nasenmeister-Ansage</button>}
@@ -321,10 +321,14 @@ export default function Home() {
             <div className="hero-cup"><WinterCup variant={themeById(theme).cup} /></div>
           </section>
 
-          <section className="stats" aria-label="Stand der Tour">
-            <div><strong><CountUp value={stands.length} /></strong><span>Stände</span></div>
-            <div><strong><CountUp value={reviews.length} /></strong><span>{reviews.length === 1 ? 'Bewertung' : 'Bewertungen'}</span></div>
-            <div><strong><CountUp value={people.length} /></strong><span>{people.length === 1 ? 'Person' : 'Leute'} dabei</span></div>
+          <section className="progress-card" aria-label="Fortschritt der Tour">
+            <div className="progress-top">
+              <p><strong><CountUp value={ownRated.size} /></strong> von {stands.length} Stopps bewertet</p>
+              <span>{plural(people.length, 'Person', 'Leute')} · {plural(reviews.length, 'Bewertung', 'Bewertungen')}</span>
+            </div>
+            <div className="progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={stands.length} aria-valuenow={ownRated.size}>
+              {stands.map(st => <i key={st.id} className={ownRated.has(st.id) ? 'on' : st.id === now ? 'now' : ''} />)}
+            </div>
           </section>
 
           <section className="card map-card" id="map-card">
@@ -338,7 +342,7 @@ export default function Home() {
           </section>
 
           <section>
-            <div className="section-head"><h2>Alle Stände</h2><span>{ownRated.size} / {stands.length} von dir bewertet</span></div>
+            <div className="section-head"><h2>Alle Stände</h2></div>
             <div className="stand-list">
               {stands.map(s => {
                 const rs = byStand[s.id], avg = standAvg(s.id), done = ownRated.has(s.id);
@@ -351,8 +355,7 @@ export default function Home() {
                       <strong>{s.name}</strong>
                       <small>{s.place} · {s.wine}</small>
                       <span className="stand-meta">
-                        {rs.length ? <><Stars value={avg} size={12} /><b>{formatScore(avg)}</b></> : <span className="muted">Noch keine Bewertung</span>}
-                        <span className="count">{plural(rs.length, 'Bewertung', 'Bewertungen')}</span>
+                        {rs.length ? <><Stars value={avg} size={13} /><b>{formatScore(avg)}</b><span className="count">· {plural(rs.length, 'Bewertung', 'Bewertungen')}</span></> : <span className="count">Noch keine Bewertung</span>}
                       </span>
                     </span>
                     {rs.length > 0 && <span className="stack">{rs.slice(0, 3).map(r => <Avatar key={r.id} name={r.author} size={22} />)}</span>}
@@ -455,7 +458,8 @@ export default function Home() {
         </>}
       </main>
 
-      {!gate && <div className="now-bar" aria-label="Aktueller Stand">
+      {!gate && <div className="bottom-ui">
+      <div className="now-bar" aria-label="Aktueller Stand">
         <button type="button" className="now-info" onClick={() => setOpenStand(nowStand)}>
           <span className="now-num">{stopNumber(now)}</span>
           <span><small><MapPin size={11} /> Jetzt hier</small><strong>{nowStand.name}</strong></span>
@@ -465,13 +469,14 @@ export default function Home() {
           : allDone
             ? <button type="button" className="btn ghost small" onClick={() => changeView('ranking')}><PartyPopper size={15} /> Ranking</button>
             : <button type="button" className="btn ghost small" onClick={() => setPickNext(true)}>Nächster Stand <ChevronRight size={15} /></button>}
-      </div>}
+      </div>
 
-      {!gate && <nav className={`dock${isAdmin ? ' five' : ''}`} aria-label="Hauptnavigation">
+      <nav className={`dock${isAdmin ? ' five' : ''}`} aria-label="Hauptnavigation">
         {tabs.map(({ id, label, icon: Icon }) => (
           <button key={id} type="button" className={view === id ? 'active' : ''} aria-current={view === id ? 'page' : undefined} onClick={() => changeView(id)}><Icon size={20} /><span>{label}</span></button>
         ))}
-      </nav>}
+      </nav>
+      </div>}
 
       {openStand && <StandSheet key={openStand.id} stand={openStand} reviews={byStand[openStand.id]} ownId={profile.id} nasenId={meta.nasenmeisterId} isCurrent={openStand.id === now} onHere={() => moveHere(openStand.id)} onRoute={() => startRoute(openStand.id)} onClose={() => setOpenStand(null)} onRate={() => { const s = openStand; setOpenStand(null); startRating(s); }} onDelete={deleteRating} onPhoto={(src, label) => setLightbox({ src, label })} />}
       {activeEvent && !gate && <EventBanner key={activeEvent.id} event={activeEvent} stand={activeEvent.standId ? stands.find(x => x.id === activeEvent.standId) : undefined} podium={podium}

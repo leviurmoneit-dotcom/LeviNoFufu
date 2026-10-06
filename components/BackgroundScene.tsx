@@ -141,7 +141,9 @@ export default function BackgroundScene({ palette }: { palette: Palette }) {
       u.uMode.value = BG_MODES[p.bg]; u.uNight.value.set(...p.night); u.uPlum.value.set(...p.plum);
       u.uGlow.value.set(...p.glow); u.uGlow2.value.set(...p.glow2); u.uGlowStrength.value = p.glowStrength;
       const q = ptMat.uniforms;
-      q.uMode.value = PT_MODES[p.particles]; q.uDensity.value = p.density; q.uAlpha.value = p.particleAlpha;
+      // Auf großen Bildschirmen weniger und dezentere Lichter, damit der Inhalt vorne bleibt.
+      const wide = innerWidth > 900;
+      q.uMode.value = PT_MODES[p.particles]; q.uDensity.value = p.density * (wide ? .5 : 1); q.uAlpha.value = p.particleAlpha * (wide ? .6 : 1);
       q.uWarm1.value.set(...p.warm1); q.uWarm2.value.set(...p.warm2);
       const blending = p.additive ? THREE.AdditiveBlending : THREE.NormalBlending;
       if (ptMat.blending !== blending) { ptMat.blending = blending; ptMat.needsUpdate = true; }
@@ -154,6 +156,7 @@ export default function BackgroundScene({ palette }: { palette: Palette }) {
       camera.aspect = w / h; camera.updateProjectionMatrix();
       bgMat.uniforms.uRes.value.set(w, h);
       ptMat.uniforms.uScale.value = h * renderer.getPixelRatio() * 0.01;
+      apply.current(current.current);
       if (reduced) renderer.render(scene, camera);
     };
     resize();

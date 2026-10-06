@@ -36,6 +36,7 @@ self.addEventListener('fetch', event => {
     return;
   }
   if (url.origin !== self.location.origin) return;
+  if (url.pathname.endsWith('/version.json')) return; // immer frisch vom Server
 
   if (request.mode === 'navigate') {
     // Seite: erst Netz, bei Fehler die zuletzt gespeicherte Startseite.
