@@ -1,4 +1,4 @@
-import { stands, type Rating, type TourPhoto } from './data';
+import { defaultStands, fallbackImage, stands, type Rating, type Stand, type TourPhoto } from './data';
 import { kvGet, kvSet, loadTour, saveTour } from './storage';
 
 export type Review = {
@@ -15,6 +15,9 @@ export type Profile = { id: string; name: string };
 export type SyncMode = 'live' | 'local';
 export type SyncStatus = { online: boolean; pending: number; error: string };
 export type SaveResult = 'synced' | 'queued';
+export type EventKind = 'treffpunkt' | 'countdown' | 'runde' | 'sieger' | 'text';
+export type GroupEvent = { id: string; kind: EventKind; title: string; body: string; standId: string | null; endsAt: string | null; createdBy: string; createdAt: string; expiresAt: string };
+export type NewEvent = Pick<GroupEvent, 'kind' | 'title' | 'body' | 'standId' | 'endsAt'> & { minutes?: number };
 
 export interface ReviewStore {
   mode: SyncMode;
@@ -29,6 +32,22 @@ export interface ReviewStore {
   onStatus(listener: (s: SyncStatus) => void): () => void;
   /** Wartende Änderungen jetzt senden. */
   flush(): Promise<void>;
+
+  // Admin-Bereich
+  isAdmin: boolean;
+  hasAdmin(): Promise<boolean>;
+  /** Gruppe mit diesem Admin-Code einrichten (nur wenn sie noch keinen Admin hat). */
+  claimAdmin(key: string): Promise<void>;
+  checkAdmin(key: string): Promise<boolean>;
+  /** null = die Gruppe nutzt die Standardliste. */
+  listStands(): Promise<Stand[] | null>;
+  saveStands(list: Stand[]): Promise<void>;
+  uploadImage(dataUrl: string): Promise<string>;
+  onStands(listener: () => void): () => void;
+  listEvents(): Promise<GroupEvent[]>;
+  sendEvent(e: NewEvent): Promise<void>;
+  endEvent(id: string): Promise<void>;
+  onEvent(listener: (e: GroupEvent) => void): () => void;
 }
 
 const GROUP_KEY = 'glueh26-group';
@@ -108,6 +127,18 @@ function localStore(profile: () => Profile): ReviewStore {
     status: () => ({ online: true, pending: 0, error: '' }),
     onStatus() { return () => {}; },
     flush: async () => {},
+    isAdmin: false,
+    hasAdmin: async () => false,
+    claimAdmin: async () => { throw Error('Admin gibt es nur mit gemeinsamer Datenbank.'); },
+    checkAdmin: async () => false,
+    listStands: async () => null,
+    saveStands: async () => {},
+    uploadImage: async src => src,
+    onStands: () => () => {},
+    listEvents: async () => [],
+    sendEvent: async () => {},
+    endEvent: async () => {},
+    onEvent: () => () => {},
   };
 }
 const toReview = (standId: string, r: Rating, p: Profile): Review => ({
@@ -137,9 +168,11 @@ export function explainError(e: unknown): string {
 /** Gemeinsam über Supabase. Zugriff nur mit Gruppencode (Header, geprüft per Row Level Security).
  *  Fotos landen im öffentlichen Bucket "photos" unter einem nicht erratbaren Pfad.
  *  Ohne Netz landen Änderungen in einer Warteschlange und werden später nachgeschickt. */
-async function liveStore(url: string, key: string, group: string, profile: () => Profile): Promise<ReviewStore> {
+async function liveStore(url: string, key: string, group: string, profile: () => Profile, adminKey: string): Promise<ReviewStore> {
   const { createClient } = await import('@supabase/supabase-js');
-  const db = createClient(url, key, { auth: { persistSession: false }, global: { headers: { 'x-group-code': group } } });
+  const client = (admin: string) => createClient(url, key, { auth: { persistSession: false }, global: { headers: { 'x-group-code': group, ...(admin ? { 'x-admin-key': admin } : {}) } } });
+  const db = client(adminKey);
+  const isAdmin = adminKey ? await db.rpc('is_admin').abortSignal(timeout(8000)).then(r => r.data === true, () => false) : false;
   const local = localStore(profile);
   const OUTBOX = `outbox:${group}`, CACHE = `cache:${group}`;
   let outbox: Pending[] = (await kvGet<Pending[]>(OUTBOX).catch(() => undefined)) || [];
@@ -152,10 +185,14 @@ async function liveStore(url: string, key: string, group: string, profile: () =>
   const channel = db.channel(`gruppe-${group}`);
   const listeners = new Set<() => void>();
   const hereListeners = new Set<(standId: string, by: string) => void>();
+  const standListeners = new Set<() => void>();
+  const eventListeners = new Set<(e: GroupEvent) => void>();
   let here: { standId: string; by: string } | null = null;
   const send = (event: string, payload: object) => channel.send({ type: 'broadcast', event, payload });
   channel
     .on('broadcast', { event: 'changed' }, () => listeners.forEach(l => l()))
+    .on('broadcast', { event: 'stands' }, () => standListeners.forEach(l => l()))
+    .on('broadcast', { event: 'event' }, ({ payload }) => { if (payload?.id) eventListeners.forEach(l => l(payload as GroupEvent)); })
     .on('broadcast', { event: 'here' }, ({ payload }) => {
       if (typeof payload?.standId !== 'string') return;
       here = { standId: payload.standId, by: String(payload.by || '') };
@@ -270,15 +307,95 @@ async function liveStore(url: string, key: string, group: string, profile: () =>
     status: () => status,
     onStatus(listener) { statusListeners.add(listener); return () => statusListeners.delete(listener); },
     flush,
+
+    isAdmin,
+    async hasAdmin() { const { data } = await db.rpc('group_has_admin'); return data === true; },
+    async claimAdmin(code) {
+      const { error } = await client(code).from('groups').insert({ code: group, admin_hash: await sha256(code) });
+      if (error) throw Error(/duplicate|23505/i.test(error.message) ? 'Diese Gruppe hat schon einen Admin. Frag nach dem Admin-Code.' : explainError(error));
+    },
+    async checkAdmin(code) { const { data } = await client(code).rpc('is_admin'); return data === true; },
+    async listStands() {
+      const { data, error } = await db.from('stands').select('*').eq('group_code', group).order('position').abortSignal(timeout(12000));
+      if (error) throw error;
+      if (!data?.length) return null;
+      return (data as StandRow[]).map(fromStandRow);
+    },
+    async saveStands(list) {
+      const rows: StandRow[] = list.map((s, i) => ({
+        group_code: group, id: s.id, position: i, name: s.name, place: s.place, wine: s.wine, description: s.description,
+        image: s.image, lng: s.coords[0], lat: s.coords[1], updated_at: new Date().toISOString(),
+      }));
+      const { error } = await db.from('stands').upsert(rows);
+      if (error) throw Error(explainError(error));
+      const keep = list.map(s => s.id);
+      const { error: delError } = await db.from('stands').delete().eq('group_code', group).not('id', 'in', `(${keep.map(id => `"${id}"`).join(',')})`);
+      if (delError) throw Error(explainError(delError));
+      send('stands', {});
+    },
+    async uploadImage(src) {
+      if (!src.startsWith('data:')) return src;
+      const blob = await (await fetch(src)).blob();
+      const path = `${group}/stands/${uuid()}.jpg`;
+      const { error } = await db.storage.from('photos').upload(path, blob, { contentType: 'image/jpeg' });
+      if (error) throw Error(explainError(error));
+      return db.storage.from('photos').getPublicUrl(path).data.publicUrl;
+    },
+    onStands(listener) { standListeners.add(listener); return () => standListeners.delete(listener); },
+    async listEvents() {
+      const { data, error } = await db.from('events').select('*').eq('group_code', group).gt('expires_at', new Date().toISOString()).order('created_at', { ascending: false }).limit(10);
+      if (error) throw error;
+      return (data as EventRow[]).map(fromEventRow);
+    },
+    async sendEvent(e) {
+      const now = Date.now();
+      const row = {
+        group_code: group, kind: e.kind, title: e.title, body: e.body, stand_id: e.standId,
+        ends_at: e.minutes ? new Date(now + e.minutes * 60_000).toISOString() : e.endsAt,
+        created_by: profile().name, expires_at: new Date(now + Math.max(30, (e.minutes || 0) + 15) * 60_000).toISOString(),
+      };
+      const { data, error } = await db.from('events').insert(row).select().single();
+      if (error) throw Error(explainError(error));
+      const event = fromEventRow(data as EventRow);
+      send('event', event);
+      eventListeners.forEach(l => l(event));
+    },
+    async endEvent(id) {
+      const { data, error } = await db.from('events').update({ expires_at: new Date().toISOString() }).eq('id', id).select().single();
+      if (error) throw Error(explainError(error));
+      const event = fromEventRow(data as EventRow);
+      send('event', event);
+      eventListeners.forEach(l => l(event));
+    },
+    onEvent(listener) { eventListeners.add(listener); return () => eventListeners.delete(listener); },
   };
 }
 
+type StandRow = { group_code: string; id: string; position: number; name: string; place: string; wine: string; description: string; image: string; lng: number; lat: number; updated_at: string };
+function fromStandRow(r: StandRow): Stand {
+  const base = defaultStands.find(s => s.id === r.id);
+  return { id: r.id, name: r.name, place: r.place, wine: r.wine, description: r.description, coords: [r.lng, r.lat], image: r.image || base?.image || fallbackImage, sources: base?.sources || [] };
+}
+type EventRow = { id: string; kind: EventKind; title: string; body: string; stand_id: string | null; ends_at: string | null; created_by: string; created_at: string; expires_at: string };
+const fromEventRow = (r: EventRow): GroupEvent => ({ id: r.id, kind: r.kind, title: r.title, body: r.body, standId: r.stand_id, endsAt: r.ends_at, createdBy: r.created_by, createdAt: r.created_at, expiresAt: r.expires_at });
+async function sha256(text: string) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf), b => b.toString(16).padStart(2, '0')).join('');
+}
+export function newAdminKey() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  return 'ADMIN-' + Array.from(crypto.getRandomValues(new Uint8Array(8)), n => alphabet[n % alphabet.length]).join('');
+}
+const ADMIN_KEY = (group: string) => `glueh26-admin:${group}`;
+export function loadAdminKey(group: string) { try { return localStorage.getItem(ADMIN_KEY(group)) || ''; } catch { return ''; } }
+export function saveAdminKey(group: string, key: string) { try { if (key) localStorage.setItem(ADMIN_KEY(group), key); else localStorage.removeItem(ADMIN_KEY(group)); } catch {} }
+
 export const liveConfigured = () => Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
-export async function createStore(profile: () => Profile, group: string): Promise<ReviewStore> {
+export async function createStore(profile: () => Profile, group: string, adminKey = ''): Promise<ReviewStore> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL, key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (url && key && group) {
-    try { return await liveStore(url, key, group, profile); } catch {}
+    try { return await liveStore(url, key, group, profile, adminKey); } catch {}
   }
   return localStore(profile);
 }

@@ -13,7 +13,7 @@ const marketing: StandSource = { title: 'Bielefeld Marketing · 04.11.2025', url
 
 // Season IDs keep ratings of the former invented stands separate.
 // Coordinates identify the documented square/street, not the exact stall.
-export const stands: Stand[] = [
+export const defaultStands: Stand[] = [
  {
   id: 'wm2025-lions', name: 'Lions-Häuschen', place: 'Alter Markt',
   wine: 'Roter & weißer Glühwein', description: 'Glühwein für den guten Zweck. 2025 gab es erstmals auch weißen Glühwein sowie alkoholfreien Claire de Lune.',
@@ -61,5 +61,9 @@ export const legacyStands = [
 export function average(_stand: Stand, rating?: Rating) {
  return rating?.values.length ? rating.values.reduce((a,b)=>a+b,0) / rating.values.length : 0;
 }
+/** Aktuelle Standliste: Standard oder die vom Admin der Gruppe gepflegte Liste (live gebunden). */
+export let stands: Stand[] = defaultStands;
+export function setStands(list: Stand[] | null) { stands = list && list.length ? list : defaultStands; }
+export const fallbackImage = asset('/illustrations/markt-abend.svg');
 export const stopNumber = (id: string) => String(stands.findIndex(s => s.id === id) + 1).padStart(2, '0');
 export const formatScore = (n: number) => n.toFixed(1).replace('.', ',');

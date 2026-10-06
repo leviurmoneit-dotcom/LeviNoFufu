@@ -41,3 +41,77 @@ drop policy if exists "fotos hochladen" on storage.objects;
 drop policy if exists "fotos ersetzen" on storage.objects;
 create policy "fotos hochladen" on storage.objects for insert with check (bucket_id = 'photos');
 create policy "fotos ersetzen" on storage.objects for update using (bucket_id = 'photos');
+
+-- ───────────── Admin-Bereich (Stände bearbeiten, Events auslösen) ─────────────
+-- Wer eine Gruppe als Erste:r einrichtet, legt einen Admin-Code fest. Gespeichert wird nur sein SHA-256-Hash.
+-- Die App schickt den Code als Header "x-admin-key"; Schreibrechte auf Stände und Events gibt es nur damit.
+create table if not exists public.groups (
+  code text primary key check (char_length(code) between 6 and 40),
+  admin_hash text not null,
+  created_at timestamptz not null default now()
+);
+create table if not exists public.stands (
+  group_code text not null,
+  id text not null,
+  position int not null default 0,
+  name text not null check (char_length(name) between 1 and 60),
+  place text not null default '' check (char_length(place) <= 60),
+  wine text not null default '' check (char_length(wine) <= 80),
+  description text not null default '' check (char_length(description) <= 500),
+  image text not null default '',
+  lng double precision not null,
+  lat double precision not null,
+  updated_at timestamptz not null default now(),
+  primary key (group_code, id)
+);
+create table if not exists public.events (
+  id uuid primary key default gen_random_uuid(),
+  group_code text not null,
+  kind text not null check (kind in ('treffpunkt', 'countdown', 'runde', 'sieger', 'text')),
+  title text not null check (char_length(title) between 1 and 80),
+  body text not null default '' check (char_length(body) <= 300),
+  stand_id text,
+  ends_at timestamptz,
+  created_by text not null default '',
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null default now() + interval '2 hours'
+);
+create index if not exists events_group_idx on public.events (group_code, created_at desc);
+
+grant insert on public.groups to anon, authenticated;
+grant select, insert, update, delete on public.stands to anon, authenticated;
+grant select, insert, update, delete on public.events to anon, authenticated;
+
+create or replace function public.request_admin_hash() returns text
+language sql stable as $$
+  select encode(sha256(convert_to(coalesce(current_setting('request.headers', true)::json ->> 'x-admin-key', ''), 'UTF8')), 'hex')
+$$;
+-- security definer: darf die Tabelle groups lesen, die für die App selbst nicht lesbar ist.
+create or replace function public.is_admin() returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.groups g where g.code = public.request_group() and g.admin_hash = public.request_admin_hash())
+$$;
+create or replace function public.group_has_admin() returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.groups g where g.code = public.request_group())
+$$;
+grant execute on function public.request_admin_hash(), public.is_admin(), public.group_has_admin() to anon, authenticated;
+
+alter table public.groups enable row level security;
+alter table public.stands enable row level security;
+alter table public.events enable row level security;
+drop policy if exists "gruppe einrichten" on public.groups;
+create policy "gruppe einrichten" on public.groups for insert
+  with check (code = public.request_group() and admin_hash = public.request_admin_hash());
+drop policy if exists "stände lesen" on public.stands;
+drop policy if exists "stände admin" on public.stands;
+create policy "stände lesen" on public.stands for select using (group_code = public.request_group());
+create policy "stände admin" on public.stands for all
+  using (group_code = public.request_group() and public.is_admin())
+  with check (group_code = public.request_group() and public.is_admin());
+drop policy if exists "events lesen" on public.events;
+drop policy if exists "events admin" on public.events;
+create policy "events lesen" on public.events for select using (group_code = public.request_group());
+create policy "events admin" on public.events for all
+  using (group_code = public.request_group() and public.is_admin())
+  with check (group_code = public.request_group() and public.is_admin());
