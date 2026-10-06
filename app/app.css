@@ -440,7 +440,7 @@ li.ok .guide-icon { background: rgba(var(--pine-rgb), .16); color: var(--pine); 
 .admin-body { display: grid; gap: 12px; padding: 0 16px 16px; }
 .admin-body label, .stand-editor label { display: grid; gap: 6px; font-size: 13px; font-weight: 600; }
 .admin-body label small { font-weight: 400; color: var(--muted); }
-.kind-tabs { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px; }
+.kind-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
 .kind-tabs button, .chips-row button { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 12px; border-radius: 99px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 600; }
 .kind-tabs button.active, .chips-row button.active { background: var(--amber); border-color: var(--amber); color: var(--amber-ink); }
 .chips-row { display: flex; gap: 8px; flex-wrap: wrap; }

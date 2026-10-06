@@ -2,30 +2,186 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { asset } from '../lib/asset';
-export default function WinterCup({variant='cranberry'}:{variant?:'cranberry'|'atlas'}){
- const host=useRef<HTMLDivElement>(null),turn=useRef<(()=>void)|null>(null),[available,setAvailable]=useState(false);
- useEffect(()=>{if(!host.current)return;let renderer:THREE.WebGLRenderer;let raf=0,disposed=false;const scene=new THREE.Scene();const target=host.current;const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
- try{renderer=new THREE.WebGLRenderer({alpha:true,antialias:true,powerPreference:'low-power'});}catch{return}
- renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.setSize(230,260,false);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=variant==='atlas'?1.1:1.25;target.appendChild(renderer.domElement);setAvailable(true);
- const camera=new THREE.PerspectiveCamera(34,230/260,.1,50);camera.position.set(0,2.5,7.4);camera.lookAt(0,.2,0);
- scene.add(new THREE.HemisphereLight(0xfff4e5,0xc1a3ae,2.8));const key=new THREE.DirectionalLight(0xffeed5,5);key.position.set(-3,5,5);scene.add(key);const fill=new THREE.DirectionalLight(0xffffff,3);fill.position.set(4,1,3);scene.add(fill);const rimLight=new THREE.DirectionalLight(0xffcfc0,4);rimLight.position.set(-1,4,-3);scene.add(rimLight);
- const mug=new THREE.Group();scene.add(mug);mug.rotation.set(.05,-.32,-.14);
- const ceramic=new THREE.MeshPhysicalMaterial({color:variant==='atlas'?0x692a3e:0x941d37,roughness:variant==='atlas'?.24:.19,metalness:.05,clearcoat:1,clearcoatRoughness:.12});
- const profile=[new THREE.Vector2(0,-.78),new THREE.Vector2(.57,-.78),new THREE.Vector2(.67,-.72),new THREE.Vector2(.73,-.58),new THREE.Vector2(.79,.57),new THREE.Vector2(.80,.72),new THREE.Vector2(.79,.77),new THREE.Vector2(.735,.77),new THREE.Vector2(.73,.67),new THREE.Vector2(.67,-.57),new THREE.Vector2(0,-.62)];
- const cup=new THREE.Mesh(new THREE.LatheGeometry(profile,80),ceramic);mug.add(cup);
- const handleCurve=new THREE.CatmullRomCurve3([new THREE.Vector3(.74,.53,0),new THREE.Vector3(1.23,.5,0),new THREE.Vector3(1.43,.12,0),new THREE.Vector3(1.27,-.36,0),new THREE.Vector3(.74,-.44,0)]);mug.add(new THREE.Mesh(new THREE.TubeGeometry(handleCurve,60,.11,16,false),ceramic));
- const gold=new THREE.MeshStandardMaterial({color:0xe6c491,metalness:.65,roughness:.23});const lip=new THREE.Mesh(new THREE.TorusGeometry(.768,.017,12,80),gold);lip.rotation.x=Math.PI/2;lip.position.y=.768;mug.add(lip);
- const liquid=new THREE.Mesh(new THREE.CircleGeometry(.721,64),new THREE.MeshPhysicalMaterial({color:0x391021,roughness:.18,metalness:.2,clearcoat:1}));liquid.rotation.x=-Math.PI/2;liquid.position.y=.647;mug.add(liquid);
- const labelCanvas=document.createElement('canvas');labelCanvas.width=512;labelCanvas.height=512;const ctx=labelCanvas.getContext('2d')!;ctx.fillStyle='#fff5e7';ctx.textAlign='center';ctx.font='600 32px Arial';ctx.fillText('GLÜHWEIN',256,160);ctx.font='700 170px Arial';ctx.fillText('26',256,327);ctx.font='500 27px Arial';ctx.fillText('B I E L E F E L D',256,385);ctx.lineWidth=3;ctx.strokeStyle='#fff5e7';ctx.beginPath();ctx.moveTo(133,420);ctx.lineTo(379,420);ctx.stroke();const labelTexture=new THREE.CanvasTexture(labelCanvas);labelTexture.colorSpace=THREE.SRGBColorSpace;const label=new THREE.Mesh(new THREE.CylinderGeometry(.801,.75,1.10,64,1,true,-.73,1.46),new THREE.MeshStandardMaterial({map:labelTexture,transparent:true,roughness:.3,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2}));label.position.y=.04;mug.add(label);
- const shape=new THREE.Shape();for(let i=0;i<10;i++){const angle=Math.PI/2+i*Math.PI/5,r=i%2===0?.19:.085;const x=Math.cos(angle)*r,y=Math.sin(angle)*r;if(i===0)shape.moveTo(x,y);else shape.lineTo(x,y)}shape.closePath();const charm=new THREE.Mesh(new THREE.ExtrudeGeometry(shape,{depth:.035,bevelEnabled:true,bevelSegments:2,steps:1,bevelSize:.015,bevelThickness:.015}),gold);charm.position.set(1.18,-.38,.1);charm.rotation.z=-.2;mug.add(charm);const loop=new THREE.Mesh(new THREE.TorusGeometry(.08,.015,8,28),gold);loop.position.set(1.18,-.17,.08);mug.add(loop);
- const orange=new THREE.Mesh(new THREE.CircleGeometry(.19,32),new THREE.MeshStandardMaterial({color:0xec9c45,roughness:.55}));orange.rotation.x=-Math.PI/2;orange.position.set(.30,.654,-.23);mug.add(orange);
- const cinnamon=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,.6,12),new THREE.MeshStandardMaterial({color:0x95593b,roughness:.8}));cinnamon.rotation.set(Math.PI/2,0,.35);cinnamon.position.set(-.16,.68,-.29);mug.add(cinnamon);
- const steam:THREE.Mesh[]=[];for(let j=0;j<3;j++){const points=[];for(let i=0;i<18;i++){const y=i/17;points.push(new THREE.Vector3(Math.sin(y*6+j)*.11+(j-1)*.17,.85+y*1.25,-.1))}const mesh=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points),40,.009,6,false),new THREE.MeshBasicMaterial({color:0xcabec3,transparent:true,opacity:.25,depthWrite:false}));mug.add(mesh);steam.push(mesh)}
- const shadowCanvas=document.createElement('canvas');shadowCanvas.width=128;shadowCanvas.height=128;const sc=shadowCanvas.getContext('2d')!,gradient=sc.createRadialGradient(64,64,3,64,64,60);gradient.addColorStop(0,'rgba(81,34,46,.18)');gradient.addColorStop(1,'rgba(81,34,46,0)');sc.fillStyle=gradient;sc.fillRect(0,0,128,128);const shadow=new THREE.Mesh(new THREE.PlaneGeometry(3.8,1.3),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(shadowCanvas),transparent:true,depthWrite:false}));shadow.position.set(.08,-1.1,-.25);shadow.rotation.x=-Math.PI/2;scene.add(shadow);
- let rotation=0,last=0;turn.current=()=>{rotation+=Math.PI*2;if(reduced){mug.rotation.y+=.4;renderer.render(scene,camera)}else if(!raf)raf=requestAnimationFrame(frame)};
- function frame(time=0){raf=0;if(disposed)return;const dt=Math.min(.05,(time-last)/1000);last=time;const t=time/1000;if(!reduced){mug.rotation.y=-.32+Math.sin(t*.35)*.12+rotation;rotation*=Math.exp(-dt*2.8);mug.position.y=Math.sin(t*.75)*.025;steam.forEach((s,i)=>{s.rotation.y=Math.sin(t*.5+i)*.1;(s.material as THREE.MeshBasicMaterial).opacity=.17+Math.sin(t*.7+i)*.05});charm.rotation.z=-.2+Math.sin(t*.8)*.08;}renderer.render(scene,camera);if(!reduced&&!document.hidden)raf=requestAnimationFrame(frame)}
- let visible=true;const observer=new IntersectionObserver(entries=>{visible=entries[0].isIntersecting;if(visible&&!document.hidden&&!raf)frame(performance.now());else if(!visible){cancelAnimationFrame(raf);raf=0}},{threshold:.05});observer.observe(target);const visibility=()=>{cancelAnimationFrame(raf);raf=0;if(!document.hidden&&visible)frame(performance.now())};document.addEventListener('visibilitychange',visibility);frame();
- return()=>{disposed=true;cancelAnimationFrame(raf);observer.disconnect();document.removeEventListener('visibilitychange',visibility);turn.current=null;scene.traverse(obj=>{const m=obj as THREE.Mesh;if(m.geometry)m.geometry.dispose();if(m.material){const mats=Array.isArray(m.material)?m.material:[m.material];mats.forEach(mat=>{(mat as THREE.MeshStandardMaterial).map?.dispose();mat.dispose()})}});renderer.dispose();renderer.domElement.remove()}
- },[variant]);
- return <button className="winter-cup" aria-label="3D-Glühweintasse drehen" onClick={()=>turn.current?.()}><div ref={host}/>{!available&&<img src={asset('/illustrations/tasse.svg')} alt="Glühweintassen" className="cup-fallback"/>}</button>
+
+/** Pro Design eine eigene Tasse, komplett aus Three.js-Grundformen gebaut (keine 3D-Datei, keine Lizenzfragen).
+ *  classic: die "26 Bielefeld"-Tasse · tanne: Tannentasse mit Schneehaube · eisbaer: Eisbär mit Ohren und Gesicht
+ *  zucker: Zuckerstangen-Tasse mit Streifenhenkel · schneemann: Schneemann mit Möhrennase und Schal */
+export type CupVariant = 'classic' | 'tanne' | 'eisbaer' | 'zucker' | 'schneemann';
+
+function toonGradient() {
+  const tex = new THREE.DataTexture(new Uint8Array([90, 160, 225, 255]), 4, 1, THREE.RedFormat);
+  tex.minFilter = tex.magFilter = THREE.NearestFilter; tex.needsUpdate = true;
+  return tex;
+}
+function canvasTexture(w: number, h: number, draw: (c: CanvasRenderingContext2D) => void) {
+  const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+  draw(canvas.getContext('2d')!);
+  const tex = new THREE.CanvasTexture(canvas); tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+const stripes = (a: string, b: string, n: number) => canvasTexture(256, 256, c => {
+  c.fillStyle = a; c.fillRect(0, 0, 256, 256); c.fillStyle = b;
+  const w = 256 / n;
+  for (let i = -n; i < n * 2; i++) { c.beginPath(); c.moveTo(i * w, 0); c.lineTo(i * w + w / 2, 0); c.lineTo(i * w + w / 2 + 256, 256); c.lineTo(i * w + 256, 256); c.fill(); }
+});
+/** Punkt auf der Tassenwand: Winkel a (0 = vorne), Höhe y, kleiner Abstand nach außen. */
+const onWall = (a: number, y: number, r = .8) => new THREE.Vector3(Math.sin(a) * r, y, Math.cos(a) * r);
+
+export default function WinterCup({ variant = 'classic' }: { variant?: CupVariant }) {
+  const host = useRef<HTMLDivElement>(null), turn = useRef<(() => void) | null>(null);
+  const [available, setAvailable] = useState(false);
+  useEffect(() => {
+    if (!host.current) return;
+    let renderer: THREE.WebGLRenderer; let raf = 0, disposed = false;
+    const scene = new THREE.Scene(), target = host.current, reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    try { renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'low-power' }); } catch { return; }
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5)); renderer.setSize(230, 260, false);
+    renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.25;
+    target.appendChild(renderer.domElement); setAvailable(true);
+    const camera = new THREE.PerspectiveCamera(34, 230 / 260, .1, 50); camera.position.set(0, 2.5, 7.4); camera.lookAt(0, .2, 0);
+    scene.add(new THREE.HemisphereLight(0xfff4e5, 0xc1a3ae, 2.8));
+    const key = new THREE.DirectionalLight(0xffeed5, 5); key.position.set(-3, 5, 5); scene.add(key);
+    const fill = new THREE.DirectionalLight(0xffffff, 3); fill.position.set(4, 1, 3); scene.add(fill);
+    const rim = new THREE.DirectionalLight(0xffcfc0, 4); rim.position.set(-1, 4, -3); scene.add(rim);
+
+    const mug = new THREE.Group(); scene.add(mug); mug.rotation.set(.05, -.32, -.14);
+    const toon = (color: number, map?: THREE.Texture) => new THREE.MeshToonMaterial({ color, map, gradientMap: toonGradient() });
+    const gold = new THREE.MeshStandardMaterial({ color: 0xe6c491, metalness: .65, roughness: .23 });
+    const black = new THREE.MeshStandardMaterial({ color: 0x1b1214, roughness: .3 });
+    const white = new THREE.MeshBasicMaterial({ color: 0xffffff });
+
+    // Grundform: Körper (gedrehtes Profil), Henkel, Getränk
+    const body: Record<CupVariant, THREE.Material> = {
+      classic: new THREE.MeshPhysicalMaterial({ color: 0x941d37, roughness: .19, metalness: .05, clearcoat: 1, clearcoatRoughness: .12 }),
+      tanne: toon(0x2f7a52), eisbaer: toon(0xeef5ff), zucker: toon(0xffffff, stripes('#fff4f2', '#e2364d', 5)), schneemann: toon(0xfafcff),
+    };
+    const ceramic = body[variant];
+    const profile = [[0, -.78], [.57, -.78], [.67, -.72], [.73, -.58], [.79, .57], [.8, .72], [.79, .77], [.735, .77], [.73, .67], [.67, -.57], [0, -.62]].map(([x, y]) => new THREE.Vector2(x, y));
+    mug.add(new THREE.Mesh(new THREE.LatheGeometry(profile, 80), ceramic));
+    const handleCurve = new THREE.CatmullRomCurve3([new THREE.Vector3(.74, .53, 0), new THREE.Vector3(1.23, .5, 0), new THREE.Vector3(1.43, .12, 0), new THREE.Vector3(1.27, -.36, 0), new THREE.Vector3(.74, -.44, 0)]);
+    const handleMat = variant === 'zucker' ? toon(0xffffff, Object.assign(stripes('#ffffff', '#e2364d', 3), { wrapS: THREE.RepeatWrapping, repeat: new THREE.Vector2(6, 1) }))
+      : variant === 'tanne' ? toon(0x8a5a3a) : ceramic;
+    mug.add(new THREE.Mesh(new THREE.TubeGeometry(handleCurve, 60, variant === 'zucker' ? .13 : .11, 16, false), handleMat));
+    const drink = variant === 'eisbaer' ? 0x5a3424 : 0x391021;
+    const liquid = new THREE.Mesh(new THREE.CircleGeometry(.721, 64), new THREE.MeshPhysicalMaterial({ color: drink, roughness: .18, metalness: .2, clearcoat: 1 }));
+    liquid.rotation.x = -Math.PI / 2; liquid.position.y = .647; mug.add(liquid);
+    let charm: THREE.Object3D | null = null;
+
+    const face = (y: number, blush = 0xff8fa3) => {
+      for (const s of [-1, 1]) {
+        const eye = new THREE.Mesh(new THREE.SphereGeometry(.075, 20, 16), black);
+        eye.position.copy(onWall(s * .3, y, .79)); eye.scale.z = .5; eye.lookAt(eye.position.clone().multiplyScalar(2)); mug.add(eye);
+        const shine = new THREE.Mesh(new THREE.SphereGeometry(.022, 10, 8), white);
+        shine.position.copy(onWall(s * .3 - .03, y + .03, .83)); mug.add(shine);
+        const cheek = new THREE.Mesh(new THREE.CircleGeometry(.09, 24), new THREE.MeshBasicMaterial({ color: blush, transparent: true, opacity: .55, depthWrite: false }));
+        cheek.position.copy(onWall(s * .48, y - .14, .805)); cheek.lookAt(cheek.position.clone().multiplyScalar(2)); mug.add(cheek);
+      }
+    };
+    const smile = (y: number) => {
+      const m = new THREE.Mesh(new THREE.TorusGeometry(.07, .016, 8, 20, Math.PI), black);
+      m.position.copy(onWall(0, y, .805)); m.rotation.z = Math.PI; mug.add(m);
+    };
+
+    if (variant === 'classic') {
+      const lip = new THREE.Mesh(new THREE.TorusGeometry(.768, .017, 12, 80), gold); lip.rotation.x = Math.PI / 2; lip.position.y = .768; mug.add(lip);
+      const label = canvasTexture(512, 512, c => {
+        c.fillStyle = '#fff5e7'; c.textAlign = 'center'; c.font = '600 32px Arial'; c.fillText('GLÜHWEIN', 256, 160);
+        c.font = '700 170px Arial'; c.fillText('26', 256, 327); c.font = '500 27px Arial'; c.fillText('B I E L E F E L D', 256, 385);
+        c.lineWidth = 3; c.strokeStyle = '#fff5e7'; c.beginPath(); c.moveTo(133, 420); c.lineTo(379, 420); c.stroke();
+      });
+      const l = new THREE.Mesh(new THREE.CylinderGeometry(.801, .75, 1.1, 64, 1, true, -.73, 1.46), new THREE.MeshStandardMaterial({ map: label, transparent: true, roughness: .3, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
+      l.position.y = .04; mug.add(l);
+      const shape = new THREE.Shape();
+      for (let i = 0; i < 10; i++) { const a = Math.PI / 2 + i * Math.PI / 5, r = i % 2 === 0 ? .19 : .085; i ? shape.lineTo(Math.cos(a) * r, Math.sin(a) * r) : shape.moveTo(Math.cos(a) * r, Math.sin(a) * r); }
+      shape.closePath();
+      charm = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: .035, bevelEnabled: true, bevelSegments: 2, steps: 1, bevelSize: .015, bevelThickness: .015 }), gold);
+      charm.position.set(1.18, -.38, .1); charm.rotation.z = -.2; mug.add(charm);
+      const loop = new THREE.Mesh(new THREE.TorusGeometry(.08, .015, 8, 28), gold); loop.position.set(1.18, -.17, .08); mug.add(loop);
+      const orange = new THREE.Mesh(new THREE.CircleGeometry(.19, 32), new THREE.MeshStandardMaterial({ color: 0xec9c45, roughness: .55 }));
+      orange.rotation.x = -Math.PI / 2; orange.position.set(.3, .654, -.23); mug.add(orange);
+      const cinnamon = new THREE.Mesh(new THREE.CylinderGeometry(.035, .035, .6, 12), new THREE.MeshStandardMaterial({ color: 0x95593b, roughness: .8 }));
+      cinnamon.rotation.set(Math.PI / 2, 0, .35); cinnamon.position.set(-.16, .68, -.29); mug.add(cinnamon);
+    }
+    if (variant === 'tanne') {
+      // Schneehaube mit Tropfen
+      const snow = toon(0xffffff);
+      const cap = new THREE.Mesh(new THREE.TorusGeometry(.77, .07, 14, 80), snow); cap.rotation.x = Math.PI / 2; cap.position.y = .76; mug.add(cap);
+      for (let i = 0; i < 9; i++) { const a = (i / 9) * Math.PI * 2 + .2, d = new THREE.Mesh(new THREE.SphereGeometry(.05 + (i % 3) * .015, 12, 10), snow); d.position.copy(onWall(a, .66 - (i % 3) * .05, .79)); d.scale.y = 1.6; mug.add(d); }
+      // kleine Tanne vorne mit Stern
+      const tree = new THREE.Group(), green = toon(0x9fe0a8);
+      [[.24, .26, -.25], [.19, .22, -.05], [.13, .18, .12]].forEach(([r, h, y]) => { const c = new THREE.Mesh(new THREE.ConeGeometry(r, h, 5), green); c.position.y = y; tree.add(c); });
+      const star = new THREE.Mesh(new THREE.OctahedronGeometry(.06), gold); star.position.y = .27; tree.add(star);
+      tree.position.copy(onWall(0, -.05, .82)); tree.scale.set(1, 1, .35); tree.lookAt(tree.position.clone().setY(-.05).multiplyScalar(2)); mug.add(tree);
+      charm = star;
+    }
+    if (variant === 'eisbaer') {
+      const ear = (s: number) => {
+        const e = new THREE.Mesh(new THREE.SphereGeometry(.24, 20, 16), ceramic); e.position.set(s * .52, .98, .2); e.scale.z = .6; mug.add(e);
+        const inner = new THREE.Mesh(new THREE.SphereGeometry(.11, 16, 12), toon(0xffb3c4)); inner.position.set(s * .52, .98, .33); inner.scale.z = .4; mug.add(inner);
+        return e;
+      };
+      ear(-1); charm = ear(1);
+      face(.18, 0xffa3b8);
+      const snout = new THREE.Mesh(new THREE.SphereGeometry(.17, 24, 16), toon(0xffffff)); snout.position.copy(onWall(0, -.05, .8)); snout.scale.set(1.2, .85, .5); mug.add(snout);
+      const nose = new THREE.Mesh(new THREE.SphereGeometry(.06, 16, 12), black); nose.position.copy(onWall(0, .01, .89)); nose.scale.set(1.3, .9, .8); mug.add(nose);
+      const marsh = toon(0xfff8f0);
+      [[.25, -.2], [-.2, .15], [.05, .3]].forEach(([x, z]) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(.09, .09, .1, 16), marsh); m.position.set(x, .67, z); m.rotation.z = .3; mug.add(m); });
+    }
+    if (variant === 'zucker') {
+      face(.12);
+      smile(-.06);
+      const bow = new THREE.Group(), red = toon(0xe2364d);
+      for (const s of [-1, 1]) { const loop = new THREE.Mesh(new THREE.TorusGeometry(.1, .04, 10, 24), red); loop.position.x = s * .11; loop.scale.y = .7; bow.add(loop); }
+      bow.add(new THREE.Mesh(new THREE.SphereGeometry(.05, 12, 10), red));
+      bow.position.copy(onWall(-.55, .62, .82)); bow.lookAt(bow.position.clone().setY(.62).multiplyScalar(2)); mug.add(bow);
+      charm = bow;
+    }
+    if (variant === 'schneemann') {
+      for (const s of [-1, 1]) { const e = new THREE.Mesh(new THREE.SphereGeometry(.065, 16, 12), black); e.position.copy(onWall(s * .26, .28, .79)); e.scale.z = .5; mug.add(e); }
+      const carrot = new THREE.Mesh(new THREE.ConeGeometry(.07, .4, 16), toon(0xff8a2a)); carrot.position.copy(onWall(0, .1, .97)); carrot.rotation.x = Math.PI / 2; mug.add(carrot);
+      for (let i = 0; i < 5; i++) { const a = (i - 2) * .12, d = new THREE.Mesh(new THREE.SphereGeometry(.03, 10, 8), black); d.position.copy(onWall(a, -.12 - Math.cos(a * 4) * .04 + .04, .79)); mug.add(d); }
+      const scarfMat = toon(0xd8344a, Object.assign(stripes('#d8344a', '#f2e6d8', 6), { wrapS: THREE.RepeatWrapping, repeat: new THREE.Vector2(8, 1) }));
+      const scarf = new THREE.Mesh(new THREE.TorusGeometry(.8, .075, 12, 80), scarfMat); scarf.rotation.x = Math.PI / 2; scarf.position.y = -.42; mug.add(scarf);
+      const tail = new THREE.Mesh(new THREE.BoxGeometry(.2, .45, .06), scarfMat); tail.position.copy(onWall(.5, -.6, .84)); tail.rotation.set(.1, .5, .25); mug.add(tail);
+      charm = tail;
+    }
+
+    // Dampf und Schatten
+    const steam: THREE.Mesh[] = [];
+    for (let j = 0; j < 3; j++) {
+      const points = Array.from({ length: 18 }, (_, i) => { const y = i / 17; return new THREE.Vector3(Math.sin(y * 6 + j) * .11 + (j - 1) * .17, .85 + y * 1.25, -.1); });
+      const mesh = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 40, .009, 6, false), new THREE.MeshBasicMaterial({ color: 0xcabec3, transparent: true, opacity: .25, depthWrite: false }));
+      mug.add(mesh); steam.push(mesh);
+    }
+    const shadowTex = canvasTexture(128, 128, c => { const g = c.createRadialGradient(64, 64, 3, 64, 64, 60); g.addColorStop(0, 'rgba(81,34,46,.18)'); g.addColorStop(1, 'rgba(81,34,46,0)'); c.fillStyle = g; c.fillRect(0, 0, 128, 128); });
+    const shadow = new THREE.Mesh(new THREE.PlaneGeometry(3.8, 1.3), new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
+    shadow.position.set(.08, -1.1, -.25); shadow.rotation.x = -Math.PI / 2; scene.add(shadow);
+
+    let spin = 0, last = 0, hop = 0;
+    turn.current = () => { spin += Math.PI * 2; hop = 1; if (reduced) { mug.rotation.y += .4; renderer.render(scene, camera); } else if (!raf) raf = requestAnimationFrame(frame); };
+    const charmBase = charm?.rotation.z ?? 0;
+    function frame(time = 0) {
+      raf = 0; if (disposed) return;
+      const dt = Math.min(.05, (time - last) / 1000); last = time; const t = time / 1000;
+      if (!reduced) {
+        mug.rotation.y = -.32 + Math.sin(t * .35) * .12 + spin; spin *= Math.exp(-dt * 2.8);
+        hop *= Math.exp(-dt * 3); mug.position.y = Math.sin(t * .75) * .025 + Math.abs(Math.sin(t * 9)) * hop * .25;
+        steam.forEach((s, i) => { s.rotation.y = Math.sin(t * .5 + i) * .1; (s.material as THREE.MeshBasicMaterial).opacity = .17 + Math.sin(t * .7 + i) * .05; });
+        if (charm) charm.rotation.z = charmBase + Math.sin(t * .8) * .08;
+      }
+      renderer.render(scene, camera);
+      if (!reduced && !document.hidden) raf = requestAnimationFrame(frame);
+    }
+    let visible = true;
+    const observer = new IntersectionObserver(e => { visible = e[0].isIntersecting; if (visible && !document.hidden && !raf) frame(performance.now()); else if (!visible) { cancelAnimationFrame(raf); raf = 0; } }, { threshold: .05 });
+    observer.observe(target);
+    const visibility = () => { cancelAnimationFrame(raf); raf = 0; if (!document.hidden && visible) frame(performance.now()); };
+    document.addEventListener('visibilitychange', visibility); frame();
+    return () => {
+      disposed = true; cancelAnimationFrame(raf); observer.disconnect(); document.removeEventListener('visibilitychange', visibility); turn.current = null;
+      scene.traverse(obj => { const m = obj as THREE.Mesh; m.geometry?.dispose(); if (m.material) (Array.isArray(m.material) ? m.material : [m.material]).forEach(mat => { (mat as THREE.MeshStandardMaterial).map?.dispose(); mat.dispose(); }); });
+      renderer.dispose(); renderer.domElement.remove();
+    };
+  }, [variant]);
+  return <button className="winter-cup" aria-label="3D-Glühweintasse antippen" onClick={() => turn.current?.()}><div ref={host} />{!available && <img src={asset('/illustrations/tasse.svg')} alt="Glühweintasse" className="cup-fallback" />}</button>;
 }

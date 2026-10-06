@@ -250,7 +250,10 @@ export default function Home() {
     if (!current) { setCurrent(rateStand.id); saveCurrent(rateStand.id); }
     // Aktuellen Stand fertig bewertet: gleich fragen, wohin es weitergeht.
     const open = stands.filter(x => x.id !== rateStand.id && !ownRated.has(x.id)).length;
-    if (rateStand.id === now && open > 0) setTimeout(() => setPickNext(true), 900);
+    if (rateStand.id === now && open > 0) {
+      setSelected(nextStand.id); // Karte springt schon zum vorgeschlagenen nächsten Stand
+      setTimeout(() => setPickNext(true), 900);
+    }
     await refresh(store);
     notify(result === 'synced' ? 'Bewertung gespeichert. Prost!' : 'Auf dem Handy gespeichert. Wird hochgeladen, sobald es klappt.');
   }
@@ -315,7 +318,7 @@ export default function Home() {
               <p>Sieben Stopps durch die Altstadt. Probieren, bewerten, gemeinsam den Favoriten küren.</p>
               {isNose && <button type="button" className="nose-btn" onClick={() => setNoseOpen(true)}><span aria-hidden="true">👃</span> Nasenmeister-Ansage</button>}
             </div>
-            <div className="hero-cup"><WinterCup /></div>
+            <div className="hero-cup"><WinterCup variant={themeById(theme).cup} /></div>
           </section>
 
           <section className="stats" aria-label="Stand der Tour">
@@ -357,7 +360,6 @@ export default function Home() {
                 );
               })}
             </div>
-            <p className="fine">Weihnachtsmarkt 19.11.–30.12.2026, geschlossen am 22.11. und 24.–26.12. (Bielefeld Marketing). Die sieben Stopps sind von 2025, die Buden für 2026 sind noch nicht veröffentlicht. Die Bilder sind Illustrationen.</p>
           </section>
         </>}
 
