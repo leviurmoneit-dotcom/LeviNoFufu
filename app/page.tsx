@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { ArrowUpRight, BookOpen, Camera, KeyRound, Shield, Check, ChevronRight, Copy, Images, MapPin, Map, PartyPopper, Star, Trophy, Users, Wifi, WifiOff, X } from 'lucide-react';
+import { ArrowUpRight, BookOpen, Camera, Navigation, KeyRound, Shield, Check, ChevronRight, Copy, Images, MapPin, Map, PartyPopper, Star, Trophy, Users, Wifi, WifiOff, X } from 'lucide-react';
 import RatingSheet from '../components/RatingSheet';
 import StandSheet from '../components/StandSheet';
 import Guide, { ThemePicker } from '../components/Guide';
@@ -10,6 +10,7 @@ import EventBanner from '../components/EventBanner';
 import NextPicker from '../components/NextPicker';
 import NoseBadge from '../components/ui/NoseBadge';
 import NoseSheet from '../components/NoseSheet';
+import Intro from '../components/Intro';
 import { applyTheme, THEME_KEY, themeById } from '../lib/themes';
 import Avatar from '../components/ui/Avatar';
 import CountUp from '../components/ui/CountUp';
@@ -38,6 +39,15 @@ const SEEN_KEY = 'glueh26-seen-events';
 function loadSeen(): string[] { try { return JSON.parse(localStorage.getItem(SEEN_KEY) || '[]'); } catch { return []; } }
 const CURRENT_KEY = 'glueh26-current';
 const GUIDE_KEY = 'glueh26-guide-done';
+const INTRO_KEY = 'glueh26-intro-seen';
+const slogans = [
+  'Ob rot, ob weiß – Hauptsache heiß!',
+  'Sieben Stopps. Null Ausreden.',
+  'Erst schnuppern, dann schlürfen, dann bewerten.',
+  'Die Nase entscheidet. Der Nasenmeister sowieso.',
+  'Kalte Finger, warme Becher, ehrliche Sterne.',
+  'Wer zuerst friert, zahlt die nächste Runde.',
+];
 function loadCurrent() { try { const id = localStorage.getItem(CURRENT_KEY) || ''; return stands.some(s => s.id === id) ? id : ''; } catch { return ''; } }
 function saveCurrent(id: string) { try { localStorage.setItem(CURRENT_KEY, id); } catch {} }
 
@@ -68,6 +78,10 @@ export default function Home() {
   const [seen, setSeen] = useState<string[]>([]);
   const [pickNext, setPickNext] = useState(false);
   const [noseOpen, setNoseOpen] = useState(false);
+  const [intro, setIntro] = useState(false);
+  const [slogan, setSlogan] = useState(0);
+  const [flashLive, setFlashLive] = useState(false);
+  const wasOnline = useRef(false);
   const [meta, setMeta] = useState<GroupMeta>({ nasenmeisterId: null, nasenmeisterName: null });
   const [openStand, setOpenStand] = useState<Stand | null>(null);
   const [rateStand, setRateStand] = useState<Stand | null>(null);
@@ -138,6 +152,8 @@ export default function Home() {
         if (t) { setTheme(themeById(t).id); applyTheme(themeById(t)); }
         if (p.name.trim() && !localStorage.getItem(GUIDE_KEY)) setGuide(true);
       } catch {}
+      setSlogan(Math.floor(Math.random() * slogans.length));
+      try { if (!localStorage.getItem(INTRO_KEY) && !matchMedia('(prefers-reduced-motion: reduce)').matches) setIntro(true); } catch {}
       const c = loadCurrent();
       if (c) { setCurrent(c); setSelected(c); }
       const code = loadGroupCode();
@@ -162,7 +178,13 @@ export default function Home() {
   }
 
   useEffect(() => { if (lightbox) photoDialog.current?.showModal(); else photoDialog.current?.close(); }, [lightbox]);
-  useEffect(() => { if (askName) nameDialog.current?.showModal(); else nameDialog.current?.close(); }, [askName]);
+  useEffect(() => { if (askName && !intro) nameDialog.current?.showModal(); else nameDialog.current?.close(); }, [askName, intro]);
+  // Verbindung nur kurz bestätigen; dauerhaft sichtbar ist nur ein Problem (offline oder wartende Uploads).
+  useEffect(() => {
+    const online = store?.mode === 'live' && sync.online;
+    if (online && !wasOnline.current) { setFlashLive(true); const t = setTimeout(() => setFlashLive(false), 2600); wasOnline.current = true; return () => clearTimeout(t); }
+    if (!online) wasOnline.current = false;
+  }, [store, sync.online]);
 
   const byStand = useMemo(() => {
     const m: Record<string, Review[]> = {};
@@ -188,6 +210,7 @@ export default function Home() {
   const groupSize = people.length;
   const live = store?.mode === 'live';
   const isAdmin = !!adminKey;
+  const syncProblem = live && (!sync.online || sync.pending > 0);
   const isNose = live && !!meta.nasenmeisterId && meta.nasenmeisterId === profile.id;
   const activeEvent = events.find(e => new Date(e.expiresAt).getTime() > Date.now() && !seen.includes(e.id));
   const podium = ranked.map(st => ({ stand: st, avg: standAvg(st.id), count: byStand[st.id].length }));
@@ -230,6 +253,7 @@ export default function Home() {
     notify('Admin-Bereich freigeschaltet.');
   }
   function leaveAdmin() { saveAdminKey(group, ''); setAdminKey(''); setView('group'); connect(group); }
+  function finishIntro() { setIntro(false); try { localStorage.setItem(INTRO_KEY, '1'); } catch {} }
   function closeGuide() { setGuide(false); try { localStorage.setItem(GUIDE_KEY, '1'); } catch {} }
   function startRating(stand: Stand) { withName(() => setRateStand(stand)); }
   function moveHere(id: string) {
@@ -286,14 +310,13 @@ export default function Home() {
   return (
     <div className="app">
       <BackgroundScene palette={themeById(theme).scene} />
-      <header className="topbar">
-        <span className="brand"><span className="brand-dot" />Glühwein Tour <b>26</b></span>
-        {isNose && !gate && <button type="button" className="nose-top" onClick={() => setNoseOpen(true)} aria-label="Nasenmeister-Ansage an alle"><span aria-hidden="true">👃</span></button>}
-        <button type="button" className={`sync ${live && sync.online && !sync.pending ? 'is-live' : live ? 'is-wait' : ''}`} onClick={() => changeView('group')}>
-          {live && sync.online ? <Wifi size={14} /> : <WifiOff size={14} />}
-          {!live ? 'Lokal' : sync.pending ? `${sync.pending} wartet` : sync.online ? 'Live' : 'Offline'}
+      {intro && <Intro slogan={slogans[slogan]} onDone={finishIntro} />}
+      {(syncProblem || flashLive) && !gate && (
+        <button type="button" className={`status-pill ${syncProblem ? 'warn' : 'ok'}`} onClick={() => changeView('group')} role="status">
+          {syncProblem ? <WifiOff size={14} /> : <Wifi size={14} />}
+          {!sync.online ? (sync.pending ? `Offline · ${sync.pending} wartet` : 'Offline') : sync.pending ? `${sync.pending} wartet auf Upload` : 'Live verbunden'}
         </button>
-      </header>
+      )}
 
       <main className="content">
         {gate && <section className="gate">
@@ -315,7 +338,7 @@ export default function Home() {
             <div className="hero-copy">
               <ShinyText>Bielefeld · 19.11.–30.12.</ShinyText>
               <h1>Glühwein<br />Tour <em>26.</em></h1>
-              <p>Sieben Stopps durch die Altstadt. Probieren, bewerten, gemeinsam den Favoriten küren.</p>
+              <button type="button" className="slogan" onClick={() => setSlogan(i => (i + 1) % slogans.length)} aria-label="Nächster Spruch">{slogans[slogan]}</button>
               {isNose && <button type="button" className="nose-btn" onClick={() => setNoseOpen(true)}><span aria-hidden="true">👃</span> Nasenmeister-Ansage</button>}
             </div>
             <div className="hero-cup"><WinterCup variant={themeById(theme).cup} /></div>
@@ -332,13 +355,15 @@ export default function Home() {
           </section>
 
           <section className="card map-card" id="map-card">
-            <div className="card-head"><h2>Durch die Altstadt</h2><span className="pill">Karte: 2 Finger</span></div>
+            <div className="card-head"><h2>Durch die Altstadt</h2></div>
             <TourMap key={standsVersion} selected={selected} current={now} ratedIds={[...ownRated]} route={route} onSelect={id => { setSelected(id); }} onRouteClose={() => setRoute(null)} />
-            <button type="button" className="map-selected" onClick={() => setOpenStand(standById(selected))}>
-              <span className="num">{stopNumber(selected)}</span>
-              <span><strong>{standById(selected).name}{selected === now && <em className="here-tag">Jetzt hier</em>}</strong><small>{plural(byStand[selected].length, 'Bewertung', 'Bewertungen')} · ansehen</small></span>
-              <ChevronRight size={18} />
-            </button>
+            <div className="map-selected">
+              <button type="button" className="map-selected-main" onClick={() => setOpenStand(standById(selected))}>
+                <span className="num">{stopNumber(selected)}</span>
+                <span><strong>{standById(selected).name}{selected === now && <em className="here-tag">Jetzt hier</em>}</strong><small>{plural(byStand[selected].length, 'Bewertung', 'Bewertungen')} · ansehen</small></span>
+              </button>
+              <button type="button" className="btn ghost small route-btn" onClick={() => startRoute(selected)} aria-label={`Route zu ${standById(selected).name}`}><Navigation size={15} /> Route</button>
+            </div>
           </section>
 
           <section>
@@ -442,6 +467,7 @@ export default function Home() {
             <ThemePicker value={theme} onChange={chooseTheme} />
           </section>
           <button type="button" className="btn ghost wide" onClick={() => setGuide(true)}><BookOpen size={17} /> Anleitung & Handy-Check</button>
+          <button type="button" className="link-btn" onClick={() => setIntro(true)}>Start-Animation nochmal ansehen</button>
           <details className="sources">
             <summary>Standliste 2025 & Quellen</summary>
             <p>Belegte Auswahl, keine vollständige Beschickerliste. Preise und genaue Standpositionen sind nicht gesichert. Für 2026 müssen die Stopps neu geprüft werden.</p>
@@ -487,7 +513,7 @@ export default function Home() {
       }} />}
       {pickNext && <NextPicker stands={stands} current={nowStand} suggestion={nextStand.id} ownRated={ownRated} byStand={byStand} groupSize={groupSize}
         onPick={id => { setPickNext(false); moveHere(id); }} onClose={() => setPickNext(false)} />}
-      {guide && !askName && <Guide theme={theme} onTheme={chooseTheme} onClose={closeGuide} />}
+      {guide && !askName && !intro && <Guide theme={theme} onTheme={chooseTheme} onClose={closeGuide} />}
       {rateStand && <RatingSheet key={rateStand.id} stand={rateStand} rating={ownRating(rateStand)} hint={hint} current={rateStand.id === now ? undefined : nowStand} onSwitch={() => { setRateStand(null); startRating(nowStand); }} onClose={() => setRateStand(null)} onSave={saveRating} />}
 
       <dialog ref={nameDialog} className="sheet name-dialog" aria-labelledby="name-title" onCancel={e => { if (firstName) e.preventDefault(); else setAskName(null); }}>
