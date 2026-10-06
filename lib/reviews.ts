@@ -181,12 +181,12 @@ async function liveStore(url: string, key: string, group: string, profile: () =>
       id: review.id, group_code: group, stand_id: review.standId, author_id: review.authorId, author: review.author,
       scores: review.values, comment: review.comment, photos, updated_at: review.updated,
     };
-    const { error } = await db.from('reviews').upsert(row).abortSignal(timeout(10000));
+    const { error } = await db.from('reviews').upsert(row).abortSignal(timeout(15000));
     if (error) throw error;
     return { ...review, photos };
   }
   async function pushRemove(review: Review) {
-    const { error } = await db.from('reviews').delete().eq('id', review.id).eq('group_code', group).abortSignal(timeout(10000));
+    const { error } = await db.from('reviews').delete().eq('id', review.id).eq('group_code', group).abortSignal(timeout(15000));
     if (error) throw error;
   }
   let flushing: Promise<void> | null = null;
@@ -224,7 +224,7 @@ async function liveStore(url: string, key: string, group: string, profile: () =>
     async list() {
       let remote: Review[];
       try {
-        const { data, error } = await db.from('reviews').select('*').eq('group_code', group).order('updated_at', { ascending: false }).abortSignal(timeout(8000));
+        const { data, error } = await db.from('reviews').select('*').eq('group_code', group).order('updated_at', { ascending: false }).abortSignal(timeout(12000));
         if (error) throw error;
         remote = (data as Row[]).map(fromRow);
         kvSet(CACHE, remote).catch(() => {});

@@ -230,7 +230,7 @@ export default function Home() {
         {!gate && view === 'tour' && <>
           <section className="hero">
             <div className="hero-copy">
-              <ShinyText>Bielefeld · Winter 2026</ShinyText>
+              <ShinyText>Bielefeld · 19.11.–30.12.2026</ShinyText>
               <h1>Glühwein<br />Tour <em>26.</em></h1>
               <p>Sieben Stopps durch die Altstadt. Probieren, bewerten, gemeinsam den Favoriten küren.</p>
             </div>
@@ -276,7 +276,7 @@ export default function Home() {
                 );
               })}
             </div>
-            <p className="fine">Sieben belegte Stopps aus 2025. Die Teilnahme 2026 ist noch nicht bestätigt. Die Bilder sind Illustrationen.</p>
+            <p className="fine">Weihnachtsmarkt 19.11.–30.12.2026, geschlossen am 22.11. und 24.–26.12. (Bielefeld Marketing). Die sieben Stopps sind von 2025, die Buden für 2026 sind noch nicht veröffentlicht. Die Bilder sind Illustrationen.</p>
           </section>
         </>}
 
