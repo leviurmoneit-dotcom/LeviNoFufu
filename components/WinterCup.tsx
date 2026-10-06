@@ -1,18 +1,16 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { asset } from '../lib/asset';
 
 /** Pro Design eine eigene Tasse, komplett aus Three.js-Grundformen gebaut (keine 3D-Datei, keine Lizenzfragen).
+ *  Glasierte Keramik (PBR mit Klarlack) in einer Studio-Lichtumgebung, weicher Schattenwurf auf einer unsichtbaren Fläche.
  *  classic: die "26 Bielefeld"-Tasse · tanne: Tannentasse mit Schneehaube · eisbaer: Eisbär mit Ohren und Gesicht
  *  zucker: Zuckerstangen-Tasse mit Streifenhenkel · schneemann: Schneemann mit Möhrennase und Schal */
 export type CupVariant = 'classic' | 'tanne' | 'eisbaer' | 'zucker' | 'schneemann';
 
-function toonGradient() {
-  const tex = new THREE.DataTexture(new Uint8Array([90, 160, 225, 255]), 4, 1, THREE.RedFormat);
-  tex.minFilter = tex.magFilter = THREE.NearestFilter; tex.needsUpdate = true;
-  return tex;
-}
 function canvasTexture(w: number, h: number, draw: (c: CanvasRenderingContext2D) => void) {
   const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
   draw(canvas.getContext('2d')!);
@@ -35,36 +33,45 @@ export default function WinterCup({ variant = 'classic' }: { variant?: CupVarian
     let renderer: THREE.WebGLRenderer; let raf = 0, disposed = false;
     const scene = new THREE.Scene(), target = host.current, reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
     try { renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'low-power' }); } catch { return; }
-    renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5)); renderer.setSize(230, 260, false);
-    renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.25;
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.setSize(230, 260, false);
+    renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = .95;
+    renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     target.appendChild(renderer.domElement); setAvailable(true);
-    const camera = new THREE.PerspectiveCamera(34, 230 / 260, .1, 50); camera.position.set(0, 2.5, 7.4); camera.lookAt(0, .2, 0);
-    scene.add(new THREE.HemisphereLight(0xfff4e5, 0xc1a3ae, 2.8));
-    const key = new THREE.DirectionalLight(0xffeed5, 5); key.position.set(-3, 5, 5); scene.add(key);
-    const fill = new THREE.DirectionalLight(0xffffff, 3); fill.position.set(4, 1, 3); scene.add(fill);
-    const rim = new THREE.DirectionalLight(0xffcfc0, 4); rim.position.set(-1, 4, -3); scene.add(rim);
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const envTex = pmrem.fromScene(new RoomEnvironment(), .04).texture;
+    scene.environment = envTex;
+    const camera = new THREE.PerspectiveCamera(32, 230 / 260, .1, 50); camera.position.set(0, 2.3, 7.6); camera.lookAt(0, .15, 0);
+    scene.add(new THREE.HemisphereLight(0xfff4e5, 0x8a6a74, .6));
+    const key = new THREE.DirectionalLight(0xfff0dc, 2.6); key.position.set(-2.5, 6, 3.5); key.castShadow = true;
+    key.shadow.mapSize.set(1024, 1024); key.shadow.radius = 6; key.shadow.bias = -.0004; key.shadow.normalBias = .02;
+    Object.assign(key.shadow.camera, { left: -2.2, right: 2.2, top: 2.2, bottom: -2.2, near: .5, far: 15 }); scene.add(key);
+    const rim = new THREE.DirectionalLight(0xffd6c8, 1.6); rim.position.set(2, 3, -4); scene.add(rim);
 
     const mug = new THREE.Group(); scene.add(mug); mug.rotation.set(.05, -.32, -.14);
-    const toon = (color: number, map?: THREE.Texture) => new THREE.MeshToonMaterial({ color, map, gradientMap: toonGradient() });
-    const gold = new THREE.MeshStandardMaterial({ color: 0xe6c491, metalness: .65, roughness: .23 });
-    const black = new THREE.MeshStandardMaterial({ color: 0x1b1214, roughness: .3 });
+    // Glasierte Keramik: glatte Oberfläche mit Klarlack, Spiegelungen kommen aus der Lichtumgebung.
+    const toon = (color: number, map?: THREE.Texture, rough = .32) => new THREE.MeshPhysicalMaterial({ color, map, roughness: rough, metalness: 0, clearcoat: .9, clearcoatRoughness: .12, sheen: .2, sheenColor: new THREE.Color(0xffffff) });
+    const gold = new THREE.MeshStandardMaterial({ color: 0xe6c491, metalness: 1, roughness: .22 });
+    const black = new THREE.MeshPhysicalMaterial({ color: 0x140c0f, roughness: .08, clearcoat: 1, clearcoatRoughness: .04 });
     const white = new THREE.MeshBasicMaterial({ color: 0xffffff });
 
     // Grundform: Körper (gedrehtes Profil), Henkel, Getränk
     const body: Record<CupVariant, THREE.Material> = {
-      classic: new THREE.MeshPhysicalMaterial({ color: 0x941d37, roughness: .19, metalness: .05, clearcoat: 1, clearcoatRoughness: .12 }),
-      tanne: toon(0x2f7a52), eisbaer: toon(0xeef5ff), zucker: toon(0xffffff, stripes('#fff4f2', '#e2364d', 5)), schneemann: toon(0xfafcff),
+      classic: new THREE.MeshPhysicalMaterial({ color: 0x86132f, roughness: .19, metalness: .05, clearcoat: 1, clearcoatRoughness: .12 }),
+      tanne: toon(0x1f6a45), eisbaer: toon(0xf2f6fb, undefined, .38), zucker: toon(0xffffff, stripes('#fff6f3', '#d92c46', 5)), schneemann: toon(0xf7f9fc, undefined, .4),
     };
     const ceramic = body[variant];
-    const profile = [[0, -.78], [.57, -.78], [.67, -.72], [.73, -.58], [.79, .57], [.8, .72], [.79, .77], [.735, .77], [.73, .67], [.67, -.57], [0, -.62]].map(([x, y]) => new THREE.Vector2(x, y));
-    mug.add(new THREE.Mesh(new THREE.LatheGeometry(profile, 80), ceramic));
-    const handleCurve = new THREE.CatmullRomCurve3([new THREE.Vector3(.74, .53, 0), new THREE.Vector3(1.23, .5, 0), new THREE.Vector3(1.43, .12, 0), new THREE.Vector3(1.27, -.36, 0), new THREE.Vector3(.74, -.44, 0)]);
+    const outer = new THREE.SplineCurve([[0, -.78], [.5, -.78], [.64, -.75], [.72, -.64], [.76, -.3], [.79, .3], [.805, .66]].map(([x, y]) => new THREE.Vector2(x, y))).getPoints(28);
+    const lipArc = Array.from({ length: 9 }, (_, i) => { const a = (i / 8) * Math.PI; return new THREE.Vector2(.77 + Math.cos(a) * .035, .69 + Math.sin(a) * .06); });
+    const inner = new THREE.SplineCurve([[.735, .69], [.72, .2], [.69, -.4], [.6, -.6], [0, -.63]].map(([x, y]) => new THREE.Vector2(x, y))).getPoints(20);
+    const profile = [...outer, ...lipArc, ...inner];
+    mug.add(new THREE.Mesh(new THREE.LatheGeometry(profile, 128), ceramic));
+    const handleCurve = new THREE.CatmullRomCurve3([new THREE.Vector3(.72, .48, 0), new THREE.Vector3(1.2, .5, 0), new THREE.Vector3(1.42, .1, 0), new THREE.Vector3(1.25, -.36, 0), new THREE.Vector3(.74, -.42, 0)]);
     const handleMat = variant === 'zucker' ? toon(0xffffff, Object.assign(stripes('#ffffff', '#e2364d', 3), { wrapS: THREE.RepeatWrapping, repeat: new THREE.Vector2(6, 1) }))
       : variant === 'tanne' ? toon(0x8a5a3a) : ceramic;
-    mug.add(new THREE.Mesh(new THREE.TubeGeometry(handleCurve, 60, variant === 'zucker' ? .13 : .11, 16, false), handleMat));
-    const drink = variant === 'eisbaer' ? 0x5a3424 : 0x391021;
-    const liquid = new THREE.Mesh(new THREE.CircleGeometry(.721, 64), new THREE.MeshPhysicalMaterial({ color: drink, roughness: .18, metalness: .2, clearcoat: 1 }));
-    liquid.rotation.x = -Math.PI / 2; liquid.position.y = .647; mug.add(liquid);
+    mug.add(new THREE.Mesh(new THREE.TubeGeometry(handleCurve, 80, variant === 'zucker' ? .13 : .115, 24, false), handleMat));
+    const drink = variant === 'eisbaer' ? 0x5a3020 : 0x3e0715;
+    const liquid = new THREE.Mesh(new THREE.CircleGeometry(.715, 96), new THREE.MeshStandardMaterial({ color: drink, roughness: .22, metalness: 0, envMapIntensity: .25 }));
+    liquid.rotation.x = -Math.PI / 2; liquid.position.y = .56; mug.add(liquid);
     let charm: THREE.Object3D | null = null;
 
     const face = (y: number, blush = 0xff8fa3) => {
@@ -98,14 +105,14 @@ export default function WinterCup({ variant = 'classic' }: { variant?: CupVarian
       charm.position.set(1.18, -.38, .1); charm.rotation.z = -.2; mug.add(charm);
       const loop = new THREE.Mesh(new THREE.TorusGeometry(.08, .015, 8, 28), gold); loop.position.set(1.18, -.17, .08); mug.add(loop);
       const orange = new THREE.Mesh(new THREE.CircleGeometry(.19, 32), new THREE.MeshStandardMaterial({ color: 0xec9c45, roughness: .55 }));
-      orange.rotation.x = -Math.PI / 2; orange.position.set(.3, .654, -.23); mug.add(orange);
+      orange.rotation.x = -Math.PI / 2; orange.position.set(.3, .565, -.23); mug.add(orange);
       const cinnamon = new THREE.Mesh(new THREE.CylinderGeometry(.035, .035, .6, 12), new THREE.MeshStandardMaterial({ color: 0x95593b, roughness: .8 }));
-      cinnamon.rotation.set(Math.PI / 2, 0, .35); cinnamon.position.set(-.16, .68, -.29); mug.add(cinnamon);
+      cinnamon.rotation.set(Math.PI / 2, 0, .35); cinnamon.position.set(-.16, .6, -.29); mug.add(cinnamon);
     }
     if (variant === 'tanne') {
       // Schneehaube mit Tropfen
-      const snow = toon(0xffffff);
-      const cap = new THREE.Mesh(new THREE.TorusGeometry(.77, .07, 14, 80), snow); cap.rotation.x = Math.PI / 2; cap.position.y = .76; mug.add(cap);
+      const snow = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: .9, sheen: 1, sheenColor: new THREE.Color(0xdfeaff) });
+      const cap = new THREE.Mesh(new THREE.TorusGeometry(.77, .075, 20, 120), snow); cap.rotation.x = Math.PI / 2; cap.position.y = .76; mug.add(cap);
       for (let i = 0; i < 9; i++) { const a = (i / 9) * Math.PI * 2 + .2, d = new THREE.Mesh(new THREE.SphereGeometry(.05 + (i % 3) * .015, 12, 10), snow); d.position.copy(onWall(a, .66 - (i % 3) * .05, .79)); d.scale.y = 1.6; mug.add(d); }
       // kleine Tanne vorne mit Stern
       const tree = new THREE.Group(), green = toon(0x9fe0a8);
@@ -124,8 +131,8 @@ export default function WinterCup({ variant = 'classic' }: { variant?: CupVarian
       face(.18, 0xffa3b8);
       const snout = new THREE.Mesh(new THREE.SphereGeometry(.17, 24, 16), toon(0xffffff)); snout.position.copy(onWall(0, -.05, .8)); snout.scale.set(1.2, .85, .5); mug.add(snout);
       const nose = new THREE.Mesh(new THREE.SphereGeometry(.06, 16, 12), black); nose.position.copy(onWall(0, .01, .89)); nose.scale.set(1.3, .9, .8); mug.add(nose);
-      const marsh = toon(0xfff8f0);
-      [[.25, -.2], [-.2, .15], [.05, .3]].forEach(([x, z]) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(.09, .09, .1, 16), marsh); m.position.set(x, .67, z); m.rotation.z = .3; mug.add(m); });
+      const marsh = new THREE.MeshPhysicalMaterial({ color: 0xfff6ee, roughness: .85, sheen: 1, sheenColor: new THREE.Color(0xffffff), sheenRoughness: .6 });
+      [[.25, -.2, .4], [-.2, .15, 1.2], [.05, .32, 2.1], [-.3, -.25, .9]].forEach(([x, z, r]) => { const m = new THREE.Mesh(new RoundedBoxGeometry(.17, .14, .17, 3, .045), marsh); m.position.set(x, .6, z); m.rotation.set(.25, r, .2); mug.add(m); });
     }
     if (variant === 'zucker') {
       face(.12);
@@ -153,9 +160,13 @@ export default function WinterCup({ variant = 'classic' }: { variant?: CupVarian
       const mesh = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 40, .009, 6, false), new THREE.MeshBasicMaterial({ color: 0xcabec3, transparent: true, opacity: .25, depthWrite: false }));
       mug.add(mesh); steam.push(mesh);
     }
-    const shadowTex = canvasTexture(128, 128, c => { const g = c.createRadialGradient(64, 64, 3, 64, 64, 60); g.addColorStop(0, 'rgba(81,34,46,.18)'); g.addColorStop(1, 'rgba(81,34,46,0)'); c.fillStyle = g; c.fillRect(0, 0, 128, 128); });
-    const shadow = new THREE.Mesh(new THREE.PlaneGeometry(3.8, 1.3), new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
-    shadow.position.set(.08, -1.1, -.25); shadow.rotation.x = -Math.PI / 2; scene.add(shadow);
+    mug.traverse(o => { if ((o as THREE.Mesh).isMesh && !steam.includes(o as THREE.Mesh)) { o.castShadow = true; o.receiveShadow = true; } });
+    // Weicher Kontaktschatten (unscharfer Fleck) plus echter Schattenwurf des Lichts auf einer unsichtbaren Fläche
+    const contactTex = canvasTexture(128, 128, c => { const g = c.createRadialGradient(64, 64, 2, 64, 64, 62); g.addColorStop(0, 'rgba(20,8,14,.42)'); g.addColorStop(.5, 'rgba(20,8,14,.14)'); g.addColorStop(1, 'rgba(20,8,14,0)'); c.fillStyle = g; c.fillRect(0, 0, 128, 128); });
+    const contact = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 1.2), new THREE.MeshBasicMaterial({ map: contactTex, transparent: true, depthWrite: false }));
+    contact.rotation.x = -Math.PI / 2; contact.position.set(.12, -.9, 0); scene.add(contact);
+    const catcher = new THREE.Mesh(new THREE.PlaneGeometry(8, 8), new THREE.ShadowMaterial({ opacity: .28 }));
+    catcher.rotation.x = -Math.PI / 2; catcher.position.y = -.91; catcher.receiveShadow = true; scene.add(catcher);
 
     let spin = 0, last = 0, hop = 0;
     turn.current = () => { spin += Math.PI * 2; hop = 1; if (reduced) { mug.rotation.y += .4; renderer.render(scene, camera); } else if (!raf) raf = requestAnimationFrame(frame); };
@@ -180,7 +191,7 @@ export default function WinterCup({ variant = 'classic' }: { variant?: CupVarian
     return () => {
       disposed = true; cancelAnimationFrame(raf); observer.disconnect(); document.removeEventListener('visibilitychange', visibility); turn.current = null;
       scene.traverse(obj => { const m = obj as THREE.Mesh; m.geometry?.dispose(); if (m.material) (Array.isArray(m.material) ? m.material : [m.material]).forEach(mat => { (mat as THREE.MeshStandardMaterial).map?.dispose(); mat.dispose(); }); });
-      renderer.dispose(); renderer.domElement.remove();
+      envTex.dispose(); pmrem.dispose(); renderer.dispose(); renderer.domElement.remove();
     };
   }, [variant]);
   return <button className="winter-cup" aria-label="3D-Glühweintasse antippen" onClick={() => turn.current?.()}><div ref={host} />{!available && <img src={asset('/illustrations/tasse.svg')} alt="Glühweintasse" className="cup-fallback" />}</button>;
