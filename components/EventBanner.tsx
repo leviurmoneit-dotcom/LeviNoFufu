@@ -1,10 +1,10 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { Beer, Clock, Megaphone, Navigation, PartyPopper, Trophy, X } from 'lucide-react';
+import { Beer, Clock, Crown, Megaphone, Navigation, PartyPopper, Trophy, X } from 'lucide-react';
 import { formatScore, stopNumber, type Stand } from '../lib/data';
 import type { EventKind, GroupEvent } from '../lib/reviews';
 
-export const eventIcons: Record<EventKind, typeof Clock> = { treffpunkt: Navigation, countdown: Clock, runde: Beer, sieger: Trophy, text: Megaphone };
+export const eventIcons: Record<EventKind, typeof Clock> = { treffpunkt: Navigation, countdown: Clock, runde: Beer, sieger: Trophy, text: Megaphone, nasenmeister: Crown };
 
 function remaining(endsAt: string | null, now: number) {
   if (!endsAt) return '';
@@ -28,10 +28,10 @@ export default function EventBanner({ event, stand, podium, onRoute, onClose }: 
 
   return (
     <div className={`event-layer kind-${event.kind}`} role="alertdialog" aria-labelledby="event-title" aria-describedby="event-body">
-      {event.kind === 'sieger' && <div className="confetti" aria-hidden="true">{Array.from({ length: 36 }, (_, i) => <i key={i} style={{ '--i': i } as React.CSSProperties} />)}</div>}
+      {(event.kind === 'sieger' || event.kind === 'nasenmeister') && <div className="confetti" aria-hidden="true">{Array.from({ length: 36 }, (_, i) => <i key={i} style={{ '--i': i } as React.CSSProperties} />)}</div>}
       <div className="event-card">
         <button type="button" className="icon-btn event-close" aria-label="Schließen" onClick={onClose}><X size={18} /></button>
-        <span className="event-icon">{event.kind === 'sieger' ? <PartyPopper size={26} /> : <Icon size={26} />}</span>
+        <span className="event-icon">{event.kind === 'nasenmeister' ? <span className="event-emoji" aria-hidden="true">👃</span> : event.kind === 'sieger' ? <PartyPopper size={26} /> : <Icon size={26} />}</span>
         <small className="event-from">{event.createdBy ? `${event.createdBy} an alle` : 'An alle'}</small>
         <h2 id="event-title">{event.title}</h2>
         {event.body && <p id="event-body">{event.body}</p>}

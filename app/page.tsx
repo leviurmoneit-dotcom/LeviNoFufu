@@ -7,6 +7,8 @@ import StandSheet from '../components/StandSheet';
 import Guide, { ThemePicker } from '../components/Guide';
 import AdminView from '../components/AdminView';
 import EventBanner from '../components/EventBanner';
+import NextPicker from '../components/NextPicker';
+import NoseBadge from '../components/ui/NoseBadge';
 import { applyTheme, THEME_KEY, themeById } from '../lib/themes';
 import Avatar from '../components/ui/Avatar';
 import CountUp from '../components/ui/CountUp';
@@ -15,7 +17,7 @@ import SpotlightCard from '../components/ui/SpotlightCard';
 import Stars from '../components/ui/Stars';
 import { formatScore, setStands, stands, stopNumber, type Rating, type Stand } from '../lib/data';
 import type { RouteRequest } from '../components/TourMap';
-import { average, createStore, explainError, loadAdminKey, newAdminKey, saveAdminKey, type GroupEvent, inviteLink, liveConfigured, loadGroupCode, loadProfile, newGroupCode, normalizeCode, reviewId, saveGroupCode, saveProfile, type Profile, type Review, type ReviewStore, type SyncStatus } from '../lib/reviews';
+import { average, createStore, explainError, loadAdminKey, newAdminKey, saveAdminKey, type GroupEvent, type GroupMeta, inviteLink, liveConfigured, loadGroupCode, loadProfile, newGroupCode, normalizeCode, reviewId, saveGroupCode, saveProfile, type Profile, type Review, type ReviewStore, type SyncStatus } from '../lib/reviews';
 
 const TourMap = dynamic(() => import('../components/TourMap'), { ssr: false, loading: () => <div className="map-skeleton">Karte wird geladen …</div> });
 const WinterCup = dynamic(() => import('../components/WinterCup'), { ssr: false });
@@ -63,6 +65,8 @@ export default function Home() {
   const [adminDraft, setAdminDraft] = useState('');
   const [events, setEvents] = useState<GroupEvent[]>([]);
   const [seen, setSeen] = useState<string[]>([]);
+  const [pickNext, setPickNext] = useState(false);
+  const [meta, setMeta] = useState<GroupMeta>({ nasenmeisterId: null, nasenmeisterName: null });
   const [openStand, setOpenStand] = useState<Stand | null>(null);
   const [rateStand, setRateStand] = useState<Stand | null>(null);
   const [askName, setAskName] = useState<null | (() => void)>(null);
@@ -104,6 +108,9 @@ export default function Home() {
     s.listEvents().then(setEvents, () => {});
     if (s.mode === 'live' && !s.isAdmin) s.hasAdmin().then(setHasAdmin, () => setHasAdmin(null));
     const offStands = s.onStands(() => loadStands(s, code));
+    const loadMeta = () => s.getMeta().then(setMeta, () => {});
+    loadMeta();
+    const offMeta = s.onMeta(loadMeta);
     const offEvent = s.onEvent(e => {
       setEvents(list => [e, ...list.filter(x => x.id !== e.id)]);
       if (new Date(e.expiresAt).getTime() > Date.now()) navigator.vibrate?.([180, 80, 180]);
@@ -116,7 +123,7 @@ export default function Home() {
       setCurrent(id); saveCurrent(id); setSelected(id);
       notify(`${by || 'Jemand'}: Wir sind jetzt bei ${standById(id).name}.`);
     });
-    unsubscribeRef.current = () => { offChange(); offHere(); offStatus(); offStands(); offEvent(); };
+    unsubscribeRef.current = () => { offChange(); offHere(); offStatus(); offStands(); offEvent(); offMeta(); };
   }, [refresh, loadStands]);
 
   useEffect(() => {
@@ -238,6 +245,9 @@ export default function Home() {
     const result = await store.save(review);
     // Der Stand bleibt "Jetzt hier", bis jemand auf "Weiter" tippt.
     if (!current) { setCurrent(rateStand.id); saveCurrent(rateStand.id); }
+    // Aktuellen Stand fertig bewertet: gleich fragen, wohin es weitergeht.
+    const open = stands.filter(x => x.id !== rateStand.id && !ownRated.has(x.id)).length;
+    if (rateStand.id === now && open > 0) setTimeout(() => setPickNext(true), 900);
     await refresh(store);
     notify(result === 'synced' ? 'Bewertung gespeichert. Prost!' : 'Auf dem Handy gespeichert. Wird hochgeladen, sobald es klappt.');
   }
@@ -415,7 +425,7 @@ export default function Home() {
           <button type="button" className="btn primary wide" onClick={share}><Copy size={17} /> Freunde einladen</button>
           {live && <p className="fine">Der Einladungslink enthält euren Gruppencode. Wer ihn hat, kann mitbewerten.</p>}
           {people.length > 0 && <ul className="people">
-            {people.map(p => <li key={p.id}><Avatar name={p.name} size={38} /><span className="person"><strong>{p.name}{p.id === profile.id && <span className="you">Du</span>}</strong><small>{plural(p.count, 'Stand', 'Stände')} bewertet · im Schnitt {formatScore(p.avg)}</small></span><span className="progress"><i style={{ width: `${(p.count / stands.length) * 100}%` }} /></span></li>)}
+            {people.map(p => <li key={p.id}><Avatar name={p.name} size={38} /><span className="person"><strong>{p.name}{p.id === meta.nasenmeisterId && <NoseBadge compact />}{p.id === profile.id && <span className="you">Du</span>}</strong><small>{plural(p.count, 'Stand', 'Stände')} bewertet · im Schnitt {formatScore(p.avg)}</small></span><span className="progress"><i style={{ width: `${(p.count / stands.length) * 100}%` }} /></span></li>)}
           </ul>}
           <section className="card design-card">
             <div className="card-head"><h2>Design</h2><span className="pill">nur auf deinem Handy</span></div>
@@ -432,7 +442,7 @@ export default function Home() {
 
         {!gate && view === 'admin' && isAdmin && store && <>
           <PageHead label="Nur für Admins" title="Admin" sub="Events erscheinen sofort bei allen in der Gruppe. Änderungen an Ständen sehen alle beim nächsten Laden." />
-          <AdminView store={store} stands={stands} adminKey={adminKey} adminName={profile.name} currentId={now} events={events}
+          <AdminView store={store} stands={stands} adminKey={adminKey} adminName={profile.name} currentId={now} events={events} people={people.some(x => x.id === profile.id) ? people : [{ id: profile.id, name: profile.name }, ...people]} meta={meta}
             onStandsSaved={() => loadStands(store, group)} notify={notify} />
           <button type="button" className="link-btn" onClick={leaveAdmin}>Admin auf diesem Handy abmelden</button>
         </>}
@@ -447,7 +457,7 @@ export default function Home() {
           ? <button type="button" className="btn primary small" onClick={() => startRating(nowStand)}><Star size={15} /> Bewerten</button>
           : allDone
             ? <button type="button" className="btn ghost small" onClick={() => changeView('ranking')}><PartyPopper size={15} /> Ranking</button>
-            : <button type="button" className="btn ghost small" onClick={() => moveHere(nextStand.id)}>Weiter: {stopNumber(nextStand.id)} <ChevronRight size={15} /></button>}
+            : <button type="button" className="btn ghost small" onClick={() => setPickNext(true)}>Nächster Stand <ChevronRight size={15} /></button>}
       </div>}
 
       {!gate && <nav className={`dock${isAdmin ? ' five' : ''}`} aria-label="Hauptnavigation">
@@ -456,9 +466,11 @@ export default function Home() {
         ))}
       </nav>}
 
-      {openStand && <StandSheet key={openStand.id} stand={openStand} reviews={byStand[openStand.id]} ownId={profile.id} isCurrent={openStand.id === now} onHere={() => moveHere(openStand.id)} onRoute={() => startRoute(openStand.id)} onClose={() => setOpenStand(null)} onRate={() => { const s = openStand; setOpenStand(null); startRating(s); }} onDelete={deleteRating} onPhoto={(src, label) => setLightbox({ src, label })} />}
+      {openStand && <StandSheet key={openStand.id} stand={openStand} reviews={byStand[openStand.id]} ownId={profile.id} nasenId={meta.nasenmeisterId} isCurrent={openStand.id === now} onHere={() => moveHere(openStand.id)} onRoute={() => startRoute(openStand.id)} onClose={() => setOpenStand(null)} onRate={() => { const s = openStand; setOpenStand(null); startRating(s); }} onDelete={deleteRating} onPhoto={(src, label) => setLightbox({ src, label })} />}
       {activeEvent && !gate && <EventBanner key={activeEvent.id} event={activeEvent} stand={activeEvent.standId ? stands.find(x => x.id === activeEvent.standId) : undefined} podium={podium}
         onRoute={id => startRoute(id)} onClose={() => dismissEvent(activeEvent.id)} />}
+      {pickNext && <NextPicker stands={stands} current={nowStand} suggestion={nextStand.id} ownRated={ownRated} byStand={byStand} groupSize={groupSize}
+        onPick={id => { setPickNext(false); moveHere(id); }} onClose={() => setPickNext(false)} />}
       {guide && !askName && <Guide theme={theme} onTheme={chooseTheme} onClose={closeGuide} />}
       {rateStand && <RatingSheet key={rateStand.id} stand={rateStand} rating={ownRating(rateStand)} hint={hint} current={rateStand.id === now ? undefined : nowStand} onSwitch={() => { setRateStand(null); startRating(nowStand); }} onClose={() => setRateStand(null)} onSave={saveRating} />}
 

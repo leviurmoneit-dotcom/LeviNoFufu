@@ -15,7 +15,8 @@ export type Profile = { id: string; name: string };
 export type SyncMode = 'live' | 'local';
 export type SyncStatus = { online: boolean; pending: number; error: string };
 export type SaveResult = 'synced' | 'queued';
-export type EventKind = 'treffpunkt' | 'countdown' | 'runde' | 'sieger' | 'text';
+export type EventKind = 'treffpunkt' | 'countdown' | 'runde' | 'sieger' | 'text' | 'nasenmeister';
+export type GroupMeta = { nasenmeisterId: string | null; nasenmeisterName: string | null };
 export type GroupEvent = { id: string; kind: EventKind; title: string; body: string; standId: string | null; endsAt: string | null; createdBy: string; createdAt: string; expiresAt: string };
 export type NewEvent = Pick<GroupEvent, 'kind' | 'title' | 'body' | 'standId' | 'endsAt'> & { minutes?: number };
 
@@ -48,6 +49,9 @@ export interface ReviewStore {
   sendEvent(e: NewEvent): Promise<void>;
   endEvent(id: string): Promise<void>;
   onEvent(listener: (e: GroupEvent) => void): () => void;
+  getMeta(): Promise<GroupMeta>;
+  setNasenmeister(id: string | null, name: string | null): Promise<void>;
+  onMeta(listener: () => void): () => void;
 }
 
 const GROUP_KEY = 'glueh26-group';
@@ -139,6 +143,9 @@ function localStore(profile: () => Profile): ReviewStore {
     sendEvent: async () => {},
     endEvent: async () => {},
     onEvent: () => () => {},
+    getMeta: async () => ({ nasenmeisterId: null, nasenmeisterName: null }),
+    setNasenmeister: async () => {},
+    onMeta: () => () => {},
   };
 }
 const toReview = (standId: string, r: Rating, p: Profile): Review => ({
@@ -187,11 +194,13 @@ async function liveStore(url: string, key: string, group: string, profile: () =>
   const hereListeners = new Set<(standId: string, by: string) => void>();
   const standListeners = new Set<() => void>();
   const eventListeners = new Set<(e: GroupEvent) => void>();
+  const metaListeners = new Set<() => void>();
   let here: { standId: string; by: string } | null = null;
   const send = (event: string, payload: object) => channel.send({ type: 'broadcast', event, payload });
   channel
     .on('broadcast', { event: 'changed' }, () => listeners.forEach(l => l()))
     .on('broadcast', { event: 'stands' }, () => standListeners.forEach(l => l()))
+    .on('broadcast', { event: 'meta' }, () => metaListeners.forEach(l => l()))
     .on('broadcast', { event: 'event' }, ({ payload }) => { if (payload?.id) eventListeners.forEach(l => l(payload as GroupEvent)); })
     .on('broadcast', { event: 'here' }, ({ payload }) => {
       if (typeof payload?.standId !== 'string') return;
@@ -368,6 +377,17 @@ async function liveStore(url: string, key: string, group: string, profile: () =>
       eventListeners.forEach(l => l(event));
     },
     onEvent(listener) { eventListeners.add(listener); return () => eventListeners.delete(listener); },
+    async getMeta() {
+      const { data } = await db.from('group_meta').select('*').eq('group_code', group).maybeSingle();
+      return { nasenmeisterId: data?.nasenmeister_id ?? null, nasenmeisterName: data?.nasenmeister_name ?? null };
+    },
+    async setNasenmeister(id, name) {
+      const { error } = await db.from('group_meta').upsert({ group_code: group, nasenmeister_id: id, nasenmeister_name: name, updated_at: new Date().toISOString() });
+      if (error) throw Error(explainError(error));
+      send('meta', {});
+      metaListeners.forEach(l => l());
+    },
+    onMeta(listener) { metaListeners.add(listener); return () => metaListeners.delete(listener); },
   };
 }
 

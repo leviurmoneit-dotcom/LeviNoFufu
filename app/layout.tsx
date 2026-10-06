@@ -1,6 +1,10 @@
 import type { Metadata, Viewport } from 'next';
 import '@fontsource-variable/fraunces';
 import '@fontsource-variable/instrument-sans';
+import '@fontsource-variable/bricolage-grotesque';
+import '@fontsource-variable/fredoka';
+import '@fontsource/instrument-serif/400.css';
+import '@fontsource/instrument-serif/400-italic.css';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './app.css';
 import PwaRegister from '../components/PwaRegister';

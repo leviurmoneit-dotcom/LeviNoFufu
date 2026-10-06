@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, Beer, Clock, Copy, ImagePlus, LoaderCircle, LocateFixed, Megaphone, Navigation, Pencil, Plus, RotateCcw, Trash2, Trophy, X } from 'lucide-react';
 import { defaultStands, fallbackImage, stopNumber, type Stand } from '../lib/data';
 import { preparePhoto } from '../lib/storage';
-import type { EventKind, GroupEvent, ReviewStore } from '../lib/reviews';
+import type { EventKind, GroupEvent, GroupMeta, ReviewStore } from '../lib/reviews';
 import { eventIcons } from './EventBanner';
 
 const kinds: { id: EventKind; label: string; icon: typeof Clock }[] = [
@@ -15,8 +15,9 @@ const kinds: { id: EventKind; label: string; icon: typeof Clock }[] = [
 ];
 const timeFmt = new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit' });
 
-export default function AdminView({ store, stands, adminKey, adminName, currentId, events, onStandsSaved, notify }: {
+export default function AdminView({ store, stands, adminKey, adminName, currentId, events, people, meta, onStandsSaved, notify }: {
   store: ReviewStore; stands: Stand[]; adminKey: string; adminName: string; currentId: string; events: GroupEvent[];
+  people: { id: string; name: string }[]; meta: GroupMeta;
   onStandsSaved: () => void; notify: (msg: string) => void;
 }) {
   const [kind, setKind] = useState<EventKind>('treffpunkt');
@@ -29,6 +30,18 @@ export default function AdminView({ store, stands, adminKey, adminName, currentI
   const [editing, setEditing] = useState<Stand | null>(null);
   const [busy, setBusy] = useState(false);
   const [showKey, setShowKey] = useState(false);
+  const [nose, setNose] = useState(meta.nasenmeisterId || people[0]?.id || '');
+  async function crown(remove = false) {
+    const person = people.find(p => p.id === nose);
+    if (!remove && !person) return;
+    setBusy(true);
+    try {
+      await store.setNasenmeister(remove ? null : person!.id, remove ? null : person!.name);
+      if (!remove) await store.sendEvent({ kind: 'nasenmeister', title: `${person!.name} ist Nasenmeister!`, body: 'Die feinste Nase der Runde. Ab jetzt mit Orden bei jeder Bewertung.', standId: null, endsAt: null });
+      notify(remove ? 'Titel entfernt.' : `${person!.name} ist jetzt Nasenmeister.`);
+    } catch (err) { notify(err instanceof Error ? err.message : 'Hat nicht geklappt.'); }
+    finally { setBusy(false); }
+  }
   const active = events.filter(e => new Date(e.expiresAt).getTime() > Date.now());
 
   async function send() {
@@ -96,6 +109,17 @@ export default function AdminView({ store, stands, adminKey, adminName, currentI
         </ol>
         <div className="admin-body">
           <button type="button" className="link-btn" disabled={busy} onClick={() => { if (confirm('Standardliste von 2025 wiederherstellen? Eigene Änderungen gehen verloren.')) save(defaultStands, 'Standardliste wiederhergestellt.'); }}><RotateCcw size={14} /> Standardliste wiederherstellen</button>
+        </div>
+      </section>
+
+      <section className="card admin-card">
+        <div className="card-head"><h2>Nasenmeister <span aria-hidden="true">👃</span></h2></div>
+        <div className="admin-body">
+          <p className="muted">{meta.nasenmeisterName ? <>Aktuell: <strong>{meta.nasenmeisterName}</strong>. </> : 'Noch niemand gekürt. '}Ein Ehrentitel ohne Sonderrechte, sichtbar bei allen Bewertungen.</p>
+          {people.length ? <label>Wer bekommt den Orden?<select value={nose} onChange={e => setNose(e.target.value)}>{people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+            : <p className="muted">Sobald jemand bewertet hat, kannst du ihn hier auswählen.</p>}
+          <button type="button" className="btn primary wide" disabled={busy || !people.length} onClick={() => crown()}><span aria-hidden="true">👃</span> Zum Nasenmeister küren</button>
+          {meta.nasenmeisterId && <button type="button" className="link-btn" disabled={busy} onClick={() => crown(true)}>Titel entfernen</button>}
         </div>
       </section>
 

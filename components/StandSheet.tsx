@@ -6,11 +6,13 @@ import { average, type Review } from '../lib/reviews';
 import Avatar from './ui/Avatar';
 import CountUp from './ui/CountUp';
 import Stars from './ui/Stars';
+import NoseBadge from './ui/NoseBadge';
+import Radar from './ui/Radar';
 
 const dateFmt = new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
-export default function StandSheet({ stand, reviews, ownId, isCurrent, onRate, onHere, onRoute, onDelete, onPhoto, onClose }: {
-  stand: Stand; reviews: Review[]; ownId: string; isCurrent: boolean;
+export default function StandSheet({ stand, reviews, ownId, nasenId, isCurrent, onRate, onHere, onRoute, onDelete, onPhoto, onClose }: {
+  stand: Stand; reviews: Review[]; ownId: string; nasenId: string | null; isCurrent: boolean;
   onRate: () => void; onHere: () => void; onRoute: () => void; onDelete: (review: Review) => Promise<void>; onPhoto: (src: string, label: string) => void; onClose: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -45,6 +47,7 @@ export default function StandSheet({ stand, reviews, ownId, isCurrent, onRate, o
               <span>{reviews.length === 0 ? 'Noch keine Bewertung' : reviews.length === 1 ? '1 Bewertung' : `${reviews.length} Bewertungen`}</span>
             </div>
           </div>
+          {reviews.length > 0 && <div className="radar-wrap"><Radar labels={criteria} group={perCriterion} own={own?.values} />{own && <p className="radar-legend"><i className="g" /> Gruppe <i className="o" /> Du</p>}</div>}
           {reviews.length > 0 && (
             <ul className="criteria-bars">
               {criteria.map((c, i) => (
@@ -67,7 +70,7 @@ export default function StandSheet({ stand, reviews, ownId, isCurrent, onRate, o
             <li key={r.id} className="review">
               <header>
                 <Avatar name={r.author} size={36} />
-                <div><strong>{r.author}{r.authorId === ownId && <span className="you">Du</span>}</strong><time dateTime={r.updated}>{dateFmt.format(new Date(r.updated))}</time></div>
+                <div><strong>{r.author}{r.authorId === nasenId && <NoseBadge />}{r.authorId === ownId && <span className="you">Du</span>}</strong><time dateTime={r.updated}>{dateFmt.format(new Date(r.updated))}</time></div>
                 <span className="review-score">{formatScore(average(r.values))}</span>
               </header>
               <ul className="chips">{criteria.map((c, i) => <li key={c}>{c} <b>{r.values[i]}</b></li>)}</ul>

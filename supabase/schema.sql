@@ -115,3 +115,21 @@ create policy "events lesen" on public.events for select using (group_code = pub
 create policy "events admin" on public.events for all
   using (group_code = public.request_group() and public.is_admin())
   with check (group_code = public.request_group() and public.is_admin());
+
+-- ───────────── Nasenmeister (Ehrentitel, ohne Sonderrechte) ─────────────
+create table if not exists public.group_meta (
+  group_code text primary key,
+  nasenmeister_id text,
+  nasenmeister_name text,
+  updated_at timestamptz not null default now()
+);
+grant select, insert, update on public.group_meta to anon, authenticated;
+alter table public.group_meta enable row level security;
+drop policy if exists "meta lesen" on public.group_meta;
+drop policy if exists "meta admin" on public.group_meta;
+create policy "meta lesen" on public.group_meta for select using (group_code = public.request_group());
+create policy "meta admin" on public.group_meta for all
+  using (group_code = public.request_group() and public.is_admin())
+  with check (group_code = public.request_group() and public.is_admin());
+alter table public.events drop constraint if exists events_kind_check;
+alter table public.events add constraint events_kind_check check (kind in ('treffpunkt', 'countdown', 'runde', 'sieger', 'text', 'nasenmeister'));
