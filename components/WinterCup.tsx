@@ -33,7 +33,7 @@ export default function WinterCup({ variant = 'classic' }: { variant?: CupVarian
     let renderer: THREE.WebGLRenderer; let raf = 0, disposed = false;
     const scene = new THREE.Scene(), target = host.current, reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
     try { renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'low-power' }); } catch { return; }
-    renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.setSize(230, 260, false);
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = .95;
     renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     target.appendChild(renderer.domElement); setAvailable(true);
@@ -41,6 +41,16 @@ export default function WinterCup({ variant = 'classic' }: { variant?: CupVarian
     const envTex = pmrem.fromScene(new RoomEnvironment(), .04).texture;
     scene.environment = envTex;
     const camera = new THREE.PerspectiveCamera(32, 230 / 260, .1, 50); camera.position.set(0, 2.3, 7.6); camera.lookAt(0, .15, 0);
+    // Zeichenfläche immer in der echten Größe des Platzes: so wird die Tasse nie gestaucht oder gestreckt.
+    const fit = () => {
+      const w = Math.max(1, target.clientWidth), h = Math.max(1, target.clientHeight);
+      renderer.setSize(w, h, false); camera.aspect = w / h;
+      // Bei schmalem Platz etwas zurückzoomen, damit Henkel und Dampf ins Bild passen.
+      camera.zoom = Math.min(1, (w / h) / (230 / 260)); camera.updateProjectionMatrix();
+      renderer.render(scene, camera);
+    };
+    const sizeObserver = new ResizeObserver(fit);
+    sizeObserver.observe(target);
     scene.add(new THREE.HemisphereLight(0xfff4e5, 0x8a6a74, .6));
     const key = new THREE.DirectionalLight(0xfff0dc, 2.6); key.position.set(-2.5, 6, 3.5); key.castShadow = true;
     key.shadow.mapSize.set(1024, 1024); key.shadow.radius = 6; key.shadow.bias = -.0004; key.shadow.normalBias = .02;
@@ -189,7 +199,7 @@ export default function WinterCup({ variant = 'classic' }: { variant?: CupVarian
     const visibility = () => { cancelAnimationFrame(raf); raf = 0; if (!document.hidden && visible) frame(performance.now()); };
     document.addEventListener('visibilitychange', visibility); frame();
     return () => {
-      disposed = true; cancelAnimationFrame(raf); observer.disconnect(); document.removeEventListener('visibilitychange', visibility); turn.current = null;
+      disposed = true; cancelAnimationFrame(raf); observer.disconnect(); sizeObserver.disconnect(); document.removeEventListener('visibilitychange', visibility); turn.current = null;
       scene.traverse(obj => { const m = obj as THREE.Mesh; m.geometry?.dispose(); if (m.material) (Array.isArray(m.material) ? m.material : [m.material]).forEach(mat => { (mat as THREE.MeshStandardMaterial).map?.dispose(); mat.dispose(); }); });
       envTex.dispose(); pmrem.dispose(); renderer.dispose(); renderer.domElement.remove();
     };
