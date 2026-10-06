@@ -14,11 +14,16 @@ create table if not exists public.reviews (
 );
 create index if not exists reviews_group_idx on public.reviews (group_code);
 
+-- Neuere Supabase-Projekte geben neue Tabellen nicht automatisch für die App frei.
+grant usage on schema public to anon, authenticated;
+grant select, insert, update, delete on public.reviews to anon, authenticated;
+
 -- Der Gruppencode kommt als HTTP-Header "x-group-code" von der App.
 create or replace function public.request_group() returns text
 language sql stable as $$
   select coalesce(current_setting('request.headers', true)::json ->> 'x-group-code', '')
 $$;
+grant execute on function public.request_group() to anon, authenticated;
 
 alter table public.reviews enable row level security;
 drop policy if exists "gruppe lesen" on public.reviews;

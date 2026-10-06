@@ -1,9 +1,11 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { ArrowUpRight, Camera, Check, ChevronRight, Copy, Images, MapPin, Map, PartyPopper, Star, Trophy, Users, Wifi, WifiOff, X } from 'lucide-react';
+import { ArrowUpRight, BookOpen, Camera, Check, ChevronRight, Copy, Images, MapPin, Map, PartyPopper, Star, Trophy, Users, Wifi, WifiOff, X } from 'lucide-react';
 import RatingSheet from '../components/RatingSheet';
 import StandSheet from '../components/StandSheet';
+import Guide, { ThemePicker } from '../components/Guide';
+import { applyTheme, THEME_KEY, themeById } from '../lib/themes';
 import Avatar from '../components/ui/Avatar';
 import CountUp from '../components/ui/CountUp';
 import ShinyText from '../components/ui/ShinyText';
@@ -11,7 +13,7 @@ import SpotlightCard from '../components/ui/SpotlightCard';
 import Stars from '../components/ui/Stars';
 import { formatScore, stands, stopNumber, type Rating, type Stand } from '../lib/data';
 import type { RouteRequest } from '../components/TourMap';
-import { average, createStore, inviteLink, liveConfigured, loadGroupCode, loadProfile, newGroupCode, normalizeCode, reviewId, saveGroupCode, saveProfile, type Profile, type Review, type ReviewStore } from '../lib/reviews';
+import { average, createStore, explainError, inviteLink, liveConfigured, loadGroupCode, loadProfile, newGroupCode, normalizeCode, reviewId, saveGroupCode, saveProfile, type Profile, type Review, type ReviewStore, type SyncStatus } from '../lib/reviews';
 
 const TourMap = dynamic(() => import('../components/TourMap'), { ssr: false, loading: () => <div className="map-skeleton">Karte wird geladen …</div> });
 const WinterCup = dynamic(() => import('../components/WinterCup'), { ssr: false });
@@ -27,6 +29,7 @@ const nav: { id: View; label: string; icon: typeof Map }[] = [
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 const standById = (id: string) => stands.find(s => s.id === id)!;
 const CURRENT_KEY = 'glueh26-current';
+const GUIDE_KEY = 'glueh26-guide-done';
 function loadCurrent() { try { const id = localStorage.getItem(CURRENT_KEY) || ''; return stands.some(s => s.id === id) ? id : ''; } catch { return ''; } }
 function saveCurrent(id: string) { try { localStorage.setItem(CURRENT_KEY, id); } catch {} }
 
@@ -41,11 +44,14 @@ export default function Home() {
   const [codeDraft, setCodeDraft] = useState('');
   const unsubscribeRef = useRef<() => void>(() => {});
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [sync, setSync] = useState<SyncStatus>({ online: true, pending: 0, error: '' });
   const [loadError, setLoadError] = useState('');
   const [selected, setSelected] = useState(stands[0].id);
   const [current, setCurrent] = useState('');
   const [route, setRoute] = useState<RouteRequest | null>(null);
   const [firstName, setFirstName] = useState(false);
+  const [guide, setGuide] = useState(false);
+  const [theme, setTheme] = useState('marktnacht');
   const [openStand, setOpenStand] = useState<Stand | null>(null);
   const [rateStand, setRateStand] = useState<Stand | null>(null);
   const [askName, setAskName] = useState<null | (() => void)>(null);
@@ -59,7 +65,7 @@ export default function Home() {
 
   const refresh = useCallback(async (s: ReviewStore) => {
     try { setReviews(await s.list()); setLoadError(''); }
-    catch { setLoadError('Bewertungen konnten gerade nicht geladen werden. Prüfe deine Verbindung.'); }
+    catch (e) { setLoadError(`Bewertungen konnten gerade nicht geladen werden. ${explainError(e)}`); }
   }, []);
 
   const connect = useCallback(async (code: string) => {
@@ -68,12 +74,14 @@ export default function Home() {
     setStore(s);
     await refresh(s);
     const offChange = s.subscribe(() => refresh(s));
+    setSync(s.status());
+    const offStatus = s.onStatus(setSync);
     const offHere = s.onHere((id, by) => {
       if (!stands.some(x => x.id === id)) return;
       setCurrent(id); saveCurrent(id); setSelected(id);
       notify(`${by || 'Jemand'}: Wir sind jetzt bei ${standById(id).name}.`);
     });
-    unsubscribeRef.current = () => { offChange(); offHere(); };
+    unsubscribeRef.current = () => { offChange(); offHere(); offStatus(); };
   }, [refresh]);
 
   useEffect(() => {
@@ -81,6 +89,11 @@ export default function Home() {
       const p = await loadProfile();
       setProfile(p); profileRef.current = p;
       if (!p.name.trim()) { setFirstName(true); setNameDraft(''); setAskName(() => () => {}); }
+      try {
+        const t = localStorage.getItem(THEME_KEY);
+        if (t) { setTheme(themeById(t).id); applyTheme(themeById(t)); }
+        if (p.name.trim() && !localStorage.getItem(GUIDE_KEY)) setGuide(true);
+      } catch {}
       const c = loadCurrent();
       if (c) { setCurrent(c); setSelected(c); }
       const code = loadGroupCode();
@@ -136,6 +149,12 @@ export default function Home() {
     if (profile.name.trim()) next();
     else { setNameDraft(''); setAskName(() => next); }
   }
+  function chooseTheme(id: string) {
+    const t = themeById(id);
+    setTheme(t.id); applyTheme(t);
+    try { localStorage.setItem(THEME_KEY, t.id); } catch {}
+  }
+  function closeGuide() { setGuide(false); try { localStorage.setItem(GUIDE_KEY, '1'); } catch {} }
   function startRating(stand: Stand) { withName(() => setRateStand(stand)); }
   function moveHere(id: string) {
     setCurrent(id); saveCurrent(id); setSelected(id);
@@ -150,15 +169,15 @@ export default function Home() {
   async function saveRating(r: Rating) {
     if (!store || !rateStand) return;
     const review: Review = { id: reviewId(rateStand.id, profile.id), standId: rateStand.id, authorId: profile.id, author: profile.name.trim(), ...r };
-    await store.save(review);
+    const result = await store.save(review);
     // Der Stand bleibt "Jetzt hier", bis jemand auf "Weiter" tippt.
     if (!current) { setCurrent(rateStand.id); saveCurrent(rateStand.id); }
     await refresh(store);
-    notify('Bewertung gespeichert. Prost!');
+    notify(result === 'synced' ? 'Bewertung gespeichert. Prost!' : 'Auf dem Handy gespeichert. Wird hochgeladen, sobald es klappt.');
   }
   async function deleteRating(review: Review) {
     if (!store) return;
-    try { await store.remove(review); await refresh(store); notify('Bewertung gelöscht.'); }
+    try { const result = await store.remove(review); await refresh(store); notify(result === 'synced' ? 'Bewertung gelöscht.' : 'Gelöscht. Die Gruppe sieht es, sobald wieder Verbindung da ist.'); }
     catch { notify('Löschen hat nicht geklappt. Bitte erneut versuchen.'); }
   }
   function saveName(e: React.FormEvent) {
@@ -167,7 +186,8 @@ export default function Home() {
     if (!name) return;
     const p = { ...profile, name };
     setProfile(p); profileRef.current = p; saveProfile(p);
-    const next = askName; setAskName(null); setFirstName(false);
+    const next = askName; setAskName(null);
+    if (firstName) { setFirstName(false); setGuide(true); }
     next?.();
   }
   function changeView(v: View) { setView(v); window.scrollTo({ top: 0, behavior: 'instant' }); }
@@ -183,11 +203,12 @@ export default function Home() {
 
   return (
     <div className="app">
-      <BackgroundScene />
+      <BackgroundScene palette={themeById(theme).scene} />
       <header className="topbar">
         <span className="brand"><span className="brand-dot" />Glühwein Tour <b>26</b></span>
-        <button type="button" className={`sync ${live ? 'is-live' : ''}`} onClick={() => changeView('group')}>
-          {live ? <Wifi size={14} /> : <WifiOff size={14} />}{live ? 'Live' : 'Lokal'}
+        <button type="button" className={`sync ${live && sync.online && !sync.pending ? 'is-live' : live ? 'is-wait' : ''}`} onClick={() => changeView('group')}>
+          {live && sync.online ? <Wifi size={14} /> : <WifiOff size={14} />}
+          {!live ? 'Lokal' : sync.pending ? `${sync.pending} wartet` : sync.online ? 'Live' : 'Offline'}
         </button>
       </header>
 
@@ -305,11 +326,15 @@ export default function Home() {
             <div><small>Du bewertest als</small><strong>{profile.name || 'noch ohne Namen'}</strong></div>
             <button type="button" className="btn ghost small" onClick={() => { setNameDraft(profile.name); setAskName(() => () => {}); }}>Ändern</button>
           </section>
-          <section className={`card sync-card ${live ? 'is-live' : ''}`}>
-            {live ? <Wifi size={20} /> : <WifiOff size={20} />}
+          <section className={`card sync-card ${live && sync.online && !sync.pending ? 'is-live' : ''}`}>
+            {live && sync.online ? <Wifi size={20} /> : <WifiOff size={20} />}
             <div>
-              <strong>{live ? 'Live verbunden' : 'Nur auf diesem Gerät'}</strong>
-              <p>{live ? 'Neue Bewertungen der Gruppe erscheinen automatisch.' : 'Die gemeinsame Datenbank ist noch nicht eingerichtet. Bis dahin siehst du nur deine eigenen Bewertungen.'}</p>
+              <strong>{!live ? 'Nur auf diesem Gerät' : sync.pending ? plural(sync.pending, 'Änderung wartet', 'Änderungen warten') + ' auf Upload' : sync.online ? 'Live verbunden' : 'Gerade offline'}</strong>
+              <p>{!live ? 'Die gemeinsame Datenbank ist noch nicht eingerichtet. Bis dahin siehst du nur deine eigenen Bewertungen.'
+                : sync.pending ? 'Alles ist auf deinem Handy gespeichert und wird automatisch nachgeschickt.'
+                : sync.online ? 'Neue Bewertungen der Gruppe erscheinen automatisch.' : 'Du siehst den letzten Stand. Neue Bewertungen werden nachgeschickt.'}</p>
+              {live && sync.error && <p className="sync-error">Grund: {sync.error}</p>}
+              {live && sync.pending > 0 && <button type="button" className="btn ghost small" onClick={() => store?.flush()}>Jetzt erneut senden</button>}
             </div>
           </section>
           {live && group && <section className="card code-card">
@@ -321,6 +346,11 @@ export default function Home() {
           {people.length > 0 && <ul className="people">
             {people.map(p => <li key={p.id}><Avatar name={p.name} size={38} /><span className="person"><strong>{p.name}{p.id === profile.id && <span className="you">Du</span>}</strong><small>{plural(p.count, 'Stand', 'Stände')} bewertet · im Schnitt {formatScore(p.avg)}</small></span><span className="progress"><i style={{ width: `${(p.count / stands.length) * 100}%` }} /></span></li>)}
           </ul>}
+          <section className="card design-card">
+            <div className="card-head"><h2>Design</h2><span className="pill">nur auf deinem Handy</span></div>
+            <ThemePicker value={theme} onChange={chooseTheme} />
+          </section>
+          <button type="button" className="btn ghost wide" onClick={() => setGuide(true)}><BookOpen size={17} /> Anleitung & Handy-Check</button>
           <details className="sources">
             <summary>Standliste 2025 & Quellen</summary>
             <p>Belegte Auswahl, keine vollständige Beschickerliste. Preise und genaue Standpositionen sind nicht gesichert. Für 2026 müssen die Stopps neu geprüft werden.</p>
@@ -349,6 +379,7 @@ export default function Home() {
       </nav>}
 
       {openStand && <StandSheet key={openStand.id} stand={openStand} reviews={byStand[openStand.id]} ownId={profile.id} isCurrent={openStand.id === now} onHere={() => moveHere(openStand.id)} onRoute={() => startRoute(openStand.id)} onClose={() => setOpenStand(null)} onRate={() => { const s = openStand; setOpenStand(null); startRating(s); }} onDelete={deleteRating} onPhoto={(src, label) => setLightbox({ src, label })} />}
+      {guide && !askName && <Guide theme={theme} onTheme={chooseTheme} onClose={closeGuide} />}
       {rateStand && <RatingSheet key={rateStand.id} stand={rateStand} rating={ownRating(rateStand)} hint={hint} current={rateStand.id === now ? undefined : nowStand} onSwitch={() => { setRateStand(null); startRating(nowStand); }} onClose={() => setRateStand(null)} onSave={saveRating} />}
 
       <dialog ref={nameDialog} className="sheet name-dialog" aria-labelledby="name-title" onCancel={e => { if (firstName) e.preventDefault(); else setAskName(null); }}>

@@ -1,5 +1,5 @@
 import { stands, type Rating, type TourPhoto } from './data';
-import { loadTour, saveTour } from './storage';
+import { kvGet, kvSet, loadTour, saveTour } from './storage';
 
 export type Review = {
   id: string;
@@ -13,16 +13,22 @@ export type Review = {
 };
 export type Profile = { id: string; name: string };
 export type SyncMode = 'live' | 'local';
+export type SyncStatus = { online: boolean; pending: number; error: string };
+export type SaveResult = 'synced' | 'queued';
 
 export interface ReviewStore {
   mode: SyncMode;
   list(): Promise<Review[]>;
-  save(review: Review): Promise<void>;
-  remove(review: Review): Promise<void>;
+  save(review: Review): Promise<SaveResult>;
+  remove(review: Review): Promise<SaveResult>;
   subscribe(onChange: () => void): () => void;
   /** Allen sagen, an welchem Stand die Truppe gerade ist. */
   shareHere(standId: string, by: string): void;
   onHere(listener: (standId: string, by: string) => void): () => void;
+  status(): SyncStatus;
+  onStatus(listener: (s: SyncStatus) => void): () => void;
+  /** Wartende Änderungen jetzt senden. */
+  flush(): Promise<void>;
 }
 
 const GROUP_KEY = 'glueh26-group';
@@ -86,6 +92,7 @@ function localStore(profile: () => Profile): ReviewStore {
       const rating: Rating = { values: review.values, comment: review.comment, photos: review.photos, updated: review.updated };
       await saveTour({ ...state, name: review.author, ratings: { ...state.ratings, [review.standId]: rating } });
       listeners.forEach(l => l());
+      return 'synced';
     },
     async remove(review) {
       const state = await loadTour();
@@ -93,10 +100,14 @@ function localStore(profile: () => Profile): ReviewStore {
       delete ratings[review.standId];
       await saveTour({ ...state, ratings });
       listeners.forEach(l => l());
+      return 'synced';
     },
     subscribe(onChange) { listeners.add(onChange); return () => listeners.delete(onChange); },
     shareHere() {},
     onHere() { return () => {}; },
+    status: () => ({ online: true, pending: 0, error: '' }),
+    onStatus() { return () => {}; },
+    flush: async () => {},
   };
 }
 const toReview = (standId: string, r: Rating, p: Profile): Review => ({
@@ -105,13 +116,38 @@ const toReview = (standId: string, r: Rating, p: Profile): Review => ({
 });
 
 type Row = { id: string; group_code: string; stand_id: string; author_id: string; author: string; scores: number[]; comment: string; photos: TourPhoto[]; updated_at: string };
+type Pending = { op: 'save' | 'remove'; review: Review };
+// Auf dem Markt ist das Netz oft zäh: lieber nach ein paar Sekunden aufgeben und in die Warteschlange.
+const timeout = (ms: number) => (typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(ms) : new AbortController().signal);
+const fromRow = (r: Row): Review => ({
+  id: r.id, standId: r.stand_id, authorId: r.author_id, author: r.author,
+  values: r.scores, comment: r.comment, photos: r.photos || [], updated: r.updated_at,
+});
+
+/** Fehler von Supabase oder vom Netz in einen verständlichen Satz übersetzen. */
+export function explainError(e: unknown): string {
+  const msg = e && typeof e === 'object' && 'message' in e ? String((e as { message: unknown }).message) : String(e);
+  if (/schema cache|does not exist|PGRST205|42P01/i.test(msg)) return 'Die Tabelle fehlt in Supabase. Bitte supabase/schema.sql im SQL Editor ausführen.';
+  if (/row-level security|violates|permission denied|42501/i.test(msg)) return 'Supabase verweigert den Zugriff. Bitte supabase/schema.sql erneut ausführen.';
+  if (/bucket not found/i.test(msg)) return 'Der Foto-Speicher fehlt. Bitte supabase/schema.sql erneut ausführen.';
+  if (/fetch|network|load failed|offline|timeout/i.test(msg)) return 'Keine Verbindung zum Server.';
+  return msg.slice(0, 160);
+}
 
 /** Gemeinsam über Supabase. Zugriff nur mit Gruppencode (Header, geprüft per Row Level Security).
- *  Fotos landen im öffentlichen Bucket "photos" unter einem nicht erratbaren Pfad. */
+ *  Fotos landen im öffentlichen Bucket "photos" unter einem nicht erratbaren Pfad.
+ *  Ohne Netz landen Änderungen in einer Warteschlange und werden später nachgeschickt. */
 async function liveStore(url: string, key: string, group: string, profile: () => Profile): Promise<ReviewStore> {
   const { createClient } = await import('@supabase/supabase-js');
   const db = createClient(url, key, { auth: { persistSession: false }, global: { headers: { 'x-group-code': group } } });
   const local = localStore(profile);
+  const OUTBOX = `outbox:${group}`, CACHE = `cache:${group}`;
+  let outbox: Pending[] = (await kvGet<Pending[]>(OUTBOX).catch(() => undefined)) || [];
+  let status: SyncStatus = { online: true, pending: outbox.length, error: '' };
+  const statusListeners = new Set<(s: SyncStatus) => void>();
+  const setStatus = (next: Partial<SyncStatus>) => { status = { ...status, ...next, pending: outbox.length }; statusListeners.forEach(l => l(status)); };
+  const persistOutbox = () => kvSet(OUTBOX, outbox).catch(() => {});
+
   // Postgres-Änderungen kommen wegen der Header-Regel nicht per Realtime an, daher Broadcast im Gruppenkanal.
   const channel = db.channel(`gruppe-${group}`);
   const listeners = new Set<() => void>();
@@ -127,52 +163,113 @@ async function liveStore(url: string, key: string, group: string, profile: () =>
     })
     // Wer neu dazukommt, fragt nach dem aktuellen Stand der Truppe.
     .on('broadcast', { event: 'where' }, () => { if (here) send('here', here); })
-    .subscribe(status => { if (status === 'SUBSCRIBED') send('where', {}); });
-  const announce = () => channel.send({ type: 'broadcast', event: 'changed', payload: {} });
+    .subscribe(s => { if (s === 'SUBSCRIBED') send('where', {}); });
+  const announce = () => send('changed', {});
+
+  async function pushSave(review: Review) {
+    const photos: TourPhoto[] = [];
+    for (const photo of review.photos) {
+      if (!photo.src.startsWith('data:')) { photos.push(photo); continue; }
+      const blob = await (await fetch(photo.src)).blob();
+      const path = `${group}/${review.standId}/${review.authorId}/${photo.id}.jpg`;
+      // Ohne upsert: Überschreiben bräuchte eine Lese-Regel, und die Fotos sollen nicht auflistbar sein.
+      const { error } = await db.storage.from('photos').upload(path, blob, { contentType: 'image/jpeg' });
+      if (error && !/exists|duplicate/i.test(error.message)) throw error;
+      photos.push({ ...photo, src: db.storage.from('photos').getPublicUrl(path).data.publicUrl });
+    }
+    const row: Row = {
+      id: review.id, group_code: group, stand_id: review.standId, author_id: review.authorId, author: review.author,
+      scores: review.values, comment: review.comment, photos, updated_at: review.updated,
+    };
+    const { error } = await db.from('reviews').upsert(row).abortSignal(timeout(10000));
+    if (error) throw error;
+    return { ...review, photos };
+  }
+  async function pushRemove(review: Review) {
+    const { error } = await db.from('reviews').delete().eq('id', review.id).eq('group_code', group).abortSignal(timeout(10000));
+    if (error) throw error;
+  }
+  let flushing: Promise<void> | null = null;
+  function flush() {
+    if (!outbox.length) return Promise.resolve();
+    return (flushing ||= (async () => {
+      try {
+        while (outbox.length) {
+          const item = outbox[0];
+          if (item.op === 'save') await local.save(await pushSave(item.review));
+          else await pushRemove(item.review);
+          outbox = outbox.slice(1);
+          await persistOutbox();
+        }
+        setStatus({ online: true, error: '' });
+        announce();
+        listeners.forEach(l => l());
+      } catch (e) {
+        setStatus({ error: explainError(e) });
+      } finally { flushing = null; }
+    })());
+  }
+  function enqueue(item: Pending, e: unknown) {
+    outbox = [...outbox.filter(x => x.review.id !== item.review.id), item];
+    persistOutbox();
+    setStatus({ error: explainError(e) });
+  }
+  const retry = () => { if (!document.hidden) flush(); };
+  addEventListener('online', retry);
+  setInterval(() => { if (outbox.length) retry(); }, 30_000);
+  if (outbox.length) setTimeout(retry, 1500);
+
   return {
     mode: 'live',
     async list() {
-      const { data, error } = await db.from('reviews').select('*').eq('group_code', group).order('updated_at', { ascending: false });
-      if (error) throw error;
-      return (data as Row[]).map(r => ({
-        id: r.id, standId: r.stand_id, authorId: r.author_id, author: r.author,
-        values: r.scores, comment: r.comment, photos: r.photos || [], updated: r.updated_at,
-      }));
+      let remote: Review[];
+      try {
+        const { data, error } = await db.from('reviews').select('*').eq('group_code', group).order('updated_at', { ascending: false }).abortSignal(timeout(8000));
+        if (error) throw error;
+        remote = (data as Row[]).map(fromRow);
+        kvSet(CACHE, remote).catch(() => {});
+        setStatus({ online: true, ...(outbox.length ? {} : { error: '' }) });
+      } catch (e) {
+        // Offline: zuletzt geladene Gruppenwertung anzeigen.
+        remote = (await kvGet<Review[]>(CACHE).catch(() => undefined)) || [];
+        setStatus({ online: false, error: explainError(e) });
+      }
+      const pending = new Map(outbox.map(p => [p.review.id, p]));
+      const merged = remote.filter(r => !pending.has(r.id));
+      for (const p of outbox) if (p.op === 'save') merged.unshift(p.review);
+      return merged;
     },
     async save(review) {
-      const photos: TourPhoto[] = [];
-      for (const photo of review.photos) {
-        if (!photo.src.startsWith('data:')) { photos.push(photo); continue; }
-        const blob = await (await fetch(photo.src)).blob();
-        const path = `${group}/${review.standId}/${review.authorId}/${photo.id}.jpg`;
-        const { error } = await db.storage.from('photos').upload(path, blob, { contentType: 'image/jpeg', upsert: true });
-        if (error) throw error;
-        photos.push({ ...photo, src: db.storage.from('photos').getPublicUrl(path).data.publicUrl });
+      try {
+        const saved = await pushSave(review);
+        await local.save(saved);
+        announce();
+        setStatus({ online: true, error: outbox.length ? status.error : '' });
+        flush();
+        return 'synced';
+      } catch (e) {
+        await local.save(review);
+        enqueue({ op: 'save', review }, e);
+        return 'queued';
       }
-      const row: Row = {
-        id: review.id, group_code: group, stand_id: review.standId, author_id: review.authorId, author: review.author,
-        scores: review.values, comment: review.comment, photos, updated_at: review.updated,
-      };
-      const { error } = await db.from('reviews').upsert(row);
-      if (error) throw error;
-      await local.save({ ...review, photos });
-      announce();
     },
     async remove(review) {
-      const { error } = await db.from('reviews').delete().eq('id', review.id).eq('group_code', group);
-      if (error) throw error;
       await local.remove(review);
-      announce();
+      try { await pushRemove(review); announce(); return 'synced'; }
+      catch (e) { enqueue({ op: 'remove', review }, e); return 'queued'; }
     },
     subscribe(onChange) {
       listeners.add(onChange);
-      const focus = () => { if (!document.hidden) onChange(); };
+      const focus = () => { if (!document.hidden) { flush(); onChange(); } };
       document.addEventListener('visibilitychange', focus);
       const poll = setInterval(focus, 60_000);
       return () => { listeners.delete(onChange); clearInterval(poll); document.removeEventListener('visibilitychange', focus); };
     },
     shareHere(standId, by) { here = { standId, by }; send('here', here); },
     onHere(listener) { hereListeners.add(listener); return () => hereListeners.delete(listener); },
+    status: () => status,
+    onStatus(listener) { statusListeners.add(listener); return () => statusListeners.delete(listener); },
+    flush,
   };
 }
 
