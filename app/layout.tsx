@@ -3,6 +3,7 @@ import '@fontsource-variable/fraunces';
 import '@fontsource-variable/instrument-sans';
 import '@fontsource-variable/bricolage-grotesque';
 import '@fontsource-variable/fredoka';
+import '@fontsource-variable/outfit';
 import '@fontsource-variable/playfair-display';
 import '@fontsource-variable/playfair-display/wght-italic.css';
 import 'maplibre-gl/dist/maplibre-gl.css';

@@ -31,7 +31,7 @@ export default function StandSheet({ stand, reviews, ownId, nasenId, isCurrent, 
   return (
     <dialog ref={dialog} className="sheet stand-sheet" aria-labelledby="stand-title" onCancel={e => { e.preventDefault(); onClose(); }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="sheet-media">
-        <img src={stand.image} alt="" />
+        <img src={stand.image} alt="" width={560} height={210} />
         <button type="button" className="icon-btn sheet-close" aria-label="Schließen" onClick={onClose}><X size={20} /></button>
         <span className="sheet-number">Stopp {stopNumber(stand.id)}{isCurrent && ' · Jetzt hier'}</span>
       </div>
