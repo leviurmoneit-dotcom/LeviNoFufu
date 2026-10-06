@@ -133,3 +133,21 @@ create policy "meta admin" on public.group_meta for all
   with check (group_code = public.request_group() and public.is_admin());
 alter table public.events drop constraint if exists events_kind_check;
 alter table public.events add constraint events_kind_check check (kind in ('treffpunkt', 'countdown', 'runde', 'sieger', 'text', 'nasenmeister'));
+
+-- ───────────── Nasenmeister darf eigene Events schicken (nur Art "nase") ─────────────
+-- Die App schickt die Geräte-ID als Header "x-member-id". Unter Freunden reicht das als Schutz.
+alter table public.events drop constraint if exists events_kind_check;
+alter table public.events add constraint events_kind_check check (kind in ('treffpunkt', 'countdown', 'runde', 'sieger', 'text', 'nasenmeister', 'nase'));
+create or replace function public.request_member() returns text
+language sql stable as $$
+  select coalesce(current_setting('request.headers', true)::json ->> 'x-member-id', '')
+$$;
+create or replace function public.is_nasenmeister() returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.group_meta m where m.group_code = public.request_group()
+    and m.nasenmeister_id is not null and m.nasenmeister_id = public.request_member())
+$$;
+grant execute on function public.request_member(), public.is_nasenmeister() to anon, authenticated;
+drop policy if exists "events nase" on public.events;
+create policy "events nase" on public.events for insert
+  with check (group_code = public.request_group() and kind = 'nase' and public.is_nasenmeister());

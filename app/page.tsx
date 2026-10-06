@@ -9,6 +9,7 @@ import AdminView from '../components/AdminView';
 import EventBanner from '../components/EventBanner';
 import NextPicker from '../components/NextPicker';
 import NoseBadge from '../components/ui/NoseBadge';
+import NoseSheet from '../components/NoseSheet';
 import { applyTheme, THEME_KEY, themeById } from '../lib/themes';
 import Avatar from '../components/ui/Avatar';
 import CountUp from '../components/ui/CountUp';
@@ -66,6 +67,7 @@ export default function Home() {
   const [events, setEvents] = useState<GroupEvent[]>([]);
   const [seen, setSeen] = useState<string[]>([]);
   const [pickNext, setPickNext] = useState(false);
+  const [noseOpen, setNoseOpen] = useState(false);
   const [meta, setMeta] = useState<GroupMeta>({ nasenmeisterId: null, nasenmeisterName: null });
   const [openStand, setOpenStand] = useState<Stand | null>(null);
   const [rateStand, setRateStand] = useState<Stand | null>(null);
@@ -186,6 +188,7 @@ export default function Home() {
   const groupSize = people.length;
   const live = store?.mode === 'live';
   const isAdmin = !!adminKey;
+  const isNose = live && !!meta.nasenmeisterId && meta.nasenmeisterId === profile.id;
   const activeEvent = events.find(e => new Date(e.expiresAt).getTime() > Date.now() && !seen.includes(e.id));
   const podium = ranked.map(st => ({ stand: st, avg: standAvg(st.id), count: byStand[st.id].length }));
   const tabs = isAdmin ? [...nav, { id: 'admin' as View, label: 'Admin', icon: Shield }] : nav;
@@ -282,6 +285,7 @@ export default function Home() {
       <BackgroundScene palette={themeById(theme).scene} />
       <header className="topbar">
         <span className="brand"><span className="brand-dot" />Glühwein Tour <b>26</b></span>
+        {isNose && !gate && <button type="button" className="nose-top" onClick={() => setNoseOpen(true)} aria-label="Nasenmeister-Ansage an alle"><span aria-hidden="true">👃</span></button>}
         <button type="button" className={`sync ${live && sync.online && !sync.pending ? 'is-live' : live ? 'is-wait' : ''}`} onClick={() => changeView('group')}>
           {live && sync.online ? <Wifi size={14} /> : <WifiOff size={14} />}
           {!live ? 'Lokal' : sync.pending ? `${sync.pending} wartet` : sync.online ? 'Live' : 'Offline'}
@@ -309,6 +313,7 @@ export default function Home() {
               <ShinyText>Bielefeld · 19.11.–30.12.2026</ShinyText>
               <h1>Glühwein<br />Tour <em>26.</em></h1>
               <p>Sieben Stopps durch die Altstadt. Probieren, bewerten, gemeinsam den Favoriten küren.</p>
+              {isNose && <button type="button" className="nose-btn" onClick={() => setNoseOpen(true)}><span aria-hidden="true">👃</span> Nasenmeister-Ansage</button>}
             </div>
             <div className="hero-cup"><WinterCup /></div>
           </section>
@@ -469,6 +474,10 @@ export default function Home() {
       {openStand && <StandSheet key={openStand.id} stand={openStand} reviews={byStand[openStand.id]} ownId={profile.id} nasenId={meta.nasenmeisterId} isCurrent={openStand.id === now} onHere={() => moveHere(openStand.id)} onRoute={() => startRoute(openStand.id)} onClose={() => setOpenStand(null)} onRate={() => { const s = openStand; setOpenStand(null); startRating(s); }} onDelete={deleteRating} onPhoto={(src, label) => setLightbox({ src, label })} />}
       {activeEvent && !gate && <EventBanner key={activeEvent.id} event={activeEvent} stand={activeEvent.standId ? stands.find(x => x.id === activeEvent.standId) : undefined} podium={podium}
         onRoute={id => startRoute(id)} onClose={() => dismissEvent(activeEvent.id)} />}
+      {noseOpen && store && <NoseSheet onClose={() => setNoseOpen(false)} onSend={async (title, body) => {
+        try { await store.sendEvent({ kind: 'nase', title, body, standId: null, endsAt: null }); notify('Ansage an alle geschickt.'); }
+        catch (e) { notify(e instanceof Error ? e.message : 'Senden hat nicht geklappt.'); throw e; }
+      }} />}
       {pickNext && <NextPicker stands={stands} current={nowStand} suggestion={nextStand.id} ownRated={ownRated} byStand={byStand} groupSize={groupSize}
         onPick={id => { setPickNext(false); moveHere(id); }} onClose={() => setPickNext(false)} />}
       {guide && !askName && <Guide theme={theme} onTheme={chooseTheme} onClose={closeGuide} />}

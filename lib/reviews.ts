@@ -15,7 +15,7 @@ export type Profile = { id: string; name: string };
 export type SyncMode = 'live' | 'local';
 export type SyncStatus = { online: boolean; pending: number; error: string };
 export type SaveResult = 'synced' | 'queued';
-export type EventKind = 'treffpunkt' | 'countdown' | 'runde' | 'sieger' | 'text' | 'nasenmeister';
+export type EventKind = 'treffpunkt' | 'countdown' | 'runde' | 'sieger' | 'text' | 'nasenmeister' | 'nase';
 export type GroupMeta = { nasenmeisterId: string | null; nasenmeisterName: string | null };
 export type GroupEvent = { id: string; kind: EventKind; title: string; body: string; standId: string | null; endsAt: string | null; createdBy: string; createdAt: string; expiresAt: string };
 export type NewEvent = Pick<GroupEvent, 'kind' | 'title' | 'body' | 'standId' | 'endsAt'> & { minutes?: number };
@@ -177,7 +177,7 @@ export function explainError(e: unknown): string {
  *  Ohne Netz landen Änderungen in einer Warteschlange und werden später nachgeschickt. */
 async function liveStore(url: string, key: string, group: string, profile: () => Profile, adminKey: string): Promise<ReviewStore> {
   const { createClient } = await import('@supabase/supabase-js');
-  const client = (admin: string) => createClient(url, key, { auth: { persistSession: false }, global: { headers: { 'x-group-code': group, ...(admin ? { 'x-admin-key': admin } : {}) } } });
+  const client = (admin: string) => createClient(url, key, { auth: { persistSession: false }, global: { headers: { 'x-group-code': group, 'x-member-id': profile().id, ...(admin ? { 'x-admin-key': admin } : {}) } } });
   const db = client(adminKey);
   const isAdmin = adminKey ? await db.rpc('is_admin').abortSignal(timeout(8000)).then(r => r.data === true, () => false) : false;
   const local = localStore(profile);

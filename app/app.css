@@ -569,3 +569,21 @@ li.ok .guide-icon { background: rgba(var(--pine-rgb), .16); color: var(--pine); 
 [data-theme="schnee"] .card, [data-theme="schnee"] .stats, [data-theme="schnee"] .stand-card { background: rgba(255, 255, 255, .78); border-color: rgba(35, 28, 31, .08); box-shadow: 0 1px 2px rgba(35, 28, 31, .06), 0 12px 30px rgba(35, 28, 31, .07); }
 [data-theme="schnee"] .dock, [data-theme="schnee"] .now-bar { box-shadow: 0 12px 30px rgba(35, 28, 31, .14); }
 [data-theme="schnee"] .scene { background: var(--bg); }
+
+/* Nasenmeister-Ansage */
+.topbar { gap: 10px; }
+.topbar .brand { margin-right: auto; }
+.nose-top { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; border: 1px solid rgba(var(--accent-rgb), .5); background: rgba(var(--accent-rgb), .16); font-size: 18px; animation: nose-wiggle 3.5s ease-in-out infinite; }
+@keyframes nose-wiggle { 0%, 88%, 100% { transform: rotate(0); } 92% { transform: rotate(-14deg); } 96% { transform: rotate(12deg); } }
+.nose-btn { display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; min-height: 40px; padding: 0 14px; border-radius: 99px; border: 1px solid rgba(var(--accent-rgb), .5); background: linear-gradient(135deg, rgba(var(--accent-rgb), .25), rgba(var(--berry-rgb), .2)); color: var(--ink); font-weight: 700; font-size: 13px; }
+.nose-btn span { font-size: 16px; }
+.nose-sheet .sheet-body { padding-top: 20px; }
+.nose-sheet h2 { font-size: 24px; }
+.nose-presets { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.nose-presets button { display: grid; gap: 4px; align-content: start; padding: 12px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); text-align: left; }
+.nose-presets button:active { transform: scale(.97); }
+.nose-presets strong { display: flex; align-items: center; gap: 6px; font-size: 14px; }
+.nose-presets small { font-size: 12px; color: var(--muted); }
+.nose-free { display: flex; gap: 8px; }
+.nose-free input { flex: 1; min-width: 0; padding: 11px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 15px; }
+@media (prefers-reduced-motion: reduce) { .nose-top { animation: none; } }
