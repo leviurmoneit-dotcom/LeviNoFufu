@@ -12,7 +12,7 @@ import NoseBadge from '../components/ui/NoseBadge';
 import NoseSheet from '../components/NoseSheet';
 import Intro from '../components/Intro';
 import { exportBackup, exportCsv } from '../lib/export';
-import { applyTheme, THEME_KEY, themeById } from '../lib/themes';
+import { applyTheme, DESIGN_KEY, THEME_KEY, themeById } from '../lib/themes';
 import Avatar from '../components/ui/Avatar';
 import CountUp from '../components/ui/CountUp';
 import ShinyText from '../components/ui/ShinyText';
@@ -79,6 +79,7 @@ export default function Home() {
   const [seen, setSeen] = useState<string[]>([]);
   const [pickNext, setPickNext] = useState(false);
   const [noseOpen, setNoseOpen] = useState(false);
+  const [designTest, setDesignTest] = useState<'alt' | 'neu' | ''>('');
   const [intro, setIntro] = useState(false);
   const [slogan, setSlogan] = useState(0);
   const [flashLive, setFlashLive] = useState(false);
@@ -154,6 +155,7 @@ export default function Home() {
         if (p.name.trim() && !localStorage.getItem(GUIDE_KEY)) setGuide(true);
       } catch {}
       setSlogan(Math.floor(Math.random() * slogans.length));
+      try { const d = localStorage.getItem(DESIGN_KEY); if (d === 'neu' || d === 'alt') setDesignTest(d); } catch {}
       try { if (!localStorage.getItem(INTRO_KEY) && !matchMedia('(prefers-reduced-motion: reduce)').matches) setIntro(true); } catch {}
       const c = loadCurrent();
       if (c) { setCurrent(c); setSelected(c); }
@@ -254,6 +256,11 @@ export default function Home() {
     notify('Admin-Bereich freigeschaltet.');
   }
   function leaveAdmin() { saveAdminKey(group, ''); setAdminKey(''); setView('group'); connect(group); }
+  function switchDesign(d: 'alt' | 'neu') {
+    setDesignTest(d);
+    try { localStorage.setItem(DESIGN_KEY, d); } catch {}
+    if (d === 'neu') document.documentElement.dataset.design = 'neu'; else delete document.documentElement.dataset.design;
+  }
   function finishIntro() { setIntro(false); try { localStorage.setItem(INTRO_KEY, '1'); } catch {} }
   function closeGuide() { setGuide(false); try { localStorage.setItem(GUIDE_KEY, '1'); } catch {} }
   function startRating(stand: Stand) { withName(() => setRateStand(stand)); }
@@ -463,6 +470,11 @@ export default function Home() {
           {people.length > 0 && <ul className="people">
             {people.map(p => <li key={p.id}><Avatar name={p.name} size={38} /><span className="person"><strong>{p.name}{p.id === meta.nasenmeisterId && <NoseBadge compact />}{p.id === profile.id && <span className="you">Du</span>}</strong><small>{plural(p.count, 'Stand', 'Stände')} bewertet · im Schnitt {formatScore(p.avg)}</small></span><span className="progress"><i style={{ width: `${(p.count / stands.length) * 100}%` }} /></span></li>)}
           </ul>}
+          {designTest && <div className="design-test" role="group" aria-label="Design-Test">
+            <strong>Design-Test</strong>
+            <button type="button" className={designTest === 'alt' ? 'active' : ''} aria-pressed={designTest === 'alt'} onClick={() => switchDesign('alt')}>Alt</button>
+            <button type="button" className={designTest === 'neu' ? 'active' : ''} aria-pressed={designTest === 'neu'} onClick={() => switchDesign('neu')}>Neu</button>
+          </div>}
           <section className="card design-card">
             <div className="card-head"><h2>Design</h2><span className="pill">nur auf deinem Handy</span></div>
             <ThemePicker value={theme} onChange={chooseTheme} />

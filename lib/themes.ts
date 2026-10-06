@@ -58,4 +58,7 @@ export function applyTheme(theme: Theme) {
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme.vars['--bg']);
 }
 /** Läuft vor dem ersten Zeichnen (im <head>), damit kein falsches Farbschema aufblitzt. */
-export const themeBootScript = `try{var i=localStorage.getItem('${THEME_KEY}'),t=${JSON.stringify(Object.fromEntries(themes.map(t => [t.id, t.vars])))}[i];if(t){for(var k in t)document.documentElement.style.setProperty(k,t[k]);document.documentElement.dataset.theme=i}}catch(e){}`;
+/** Test-Design per Link umschalten: ?design=neu bzw. ?design=alt (wird gemerkt). */
+export const DESIGN_KEY = 'glueh26-design';
+const designBoot = `var d=new URLSearchParams(location.search).get('design');if(d==='neu'||d==='alt')localStorage.setItem('${DESIGN_KEY}',d);if(localStorage.getItem('${DESIGN_KEY}')==='neu')document.documentElement.dataset.design='neu';`;
+export const themeBootScript = `try{${designBoot}}catch(e){}try{var i=localStorage.getItem('${THEME_KEY}'),t=${JSON.stringify(Object.fromEntries(themes.map(t => [t.id, t.vars])))}[i];if(t){for(var k in t)document.documentElement.style.setProperty(k,t[k]);document.documentElement.dataset.theme=i}}catch(e){}`;

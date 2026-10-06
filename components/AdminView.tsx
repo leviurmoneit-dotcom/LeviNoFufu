@@ -79,9 +79,9 @@ export default function AdminView({ store, stands, adminKey, adminName, currentI
           </div>
           {kind === 'treffpunkt' && <label>Wo?<select value={standId} onChange={e => setStandId(e.target.value)}>{stands.map(s => <option key={s.id} value={s.id}>{stopNumber(s.id)} · {s.name}</option>)}</select></label>}
           {kind === 'countdown' && <div className="chips-row">{[5, 10, 15, 30].map(m => <button key={m} type="button" className={minutes === m ? 'active' : ''} onClick={() => setMinutes(m)}>{m} Min</button>)}</div>}
-          {kind === 'runde' && <label>Wer gibt aus?<input value={who} onChange={e => setWho(e.target.value)} maxLength={30} /></label>}
-          {kind === 'text' && <label>Titel<input value={title} onChange={e => setTitle(e.target.value)} maxLength={80} placeholder="z. B. Alle zum Ausgang!" /></label>}
-          <label>{kind === 'text' ? 'Text' : 'Zusatz'} <small>optional</small><input value={body} onChange={e => setBody(e.target.value)} maxLength={300} placeholder={kind === 'countdown' ? 'z. B. Dann geht’s zur Pyramide' : ''} /></label>
+          {kind === 'runde' && <label>Wer gibt aus?<input autoComplete="off" value={who} onChange={e => setWho(e.target.value)} maxLength={30} /></label>}
+          {kind === 'text' && <label>Titel<input autoComplete="off" value={title} onChange={e => setTitle(e.target.value)} maxLength={80} placeholder="z. B. Alle zum Ausgang!" /></label>}
+          <label>{kind === 'text' ? 'Text' : 'Zusatz'} <small>optional</small><input autoComplete="off" value={body} onChange={e => setBody(e.target.value)} maxLength={300} placeholder={kind === 'countdown' ? 'z. B. Dann geht’s zur Pyramide' : ''} /></label>
           <button type="button" className="btn primary wide" disabled={sending} onClick={send}>{sending ? <LoaderCircle className="spin" size={17} /> : <Megaphone size={17} />} An alle senden</button>
           {active.length > 0 && <ul className="active-events">
             {active.map(e => { const Icon = eventIcons[e.kind]; return (
@@ -190,9 +190,9 @@ function StandEditor({ stand, isNew, store, notify, onSave, onDelete, onClose }:
           </div>
           <input ref={file} type="file" accept="image/*" className="sr-only" tabIndex={-1} onChange={e => pickImage(e.target.files)} />
         </div>
-        <label>Name<input value={draft.name} onChange={e => set('name', e.target.value)} maxLength={60} required /></label>
-        <label>Ort<input value={draft.place} onChange={e => set('place', e.target.value)} maxLength={60} placeholder="z. B. Alter Markt" /></label>
-        <label>Getränke<input value={draft.wine} onChange={e => set('wine', e.target.value)} maxLength={80} placeholder="z. B. Roter & weißer Glühwein" /></label>
+        <label>Name<input autoComplete="off" value={draft.name} onChange={e => set('name', e.target.value)} maxLength={60} required /></label>
+        <label>Ort<input autoComplete="off" value={draft.place} onChange={e => set('place', e.target.value)} maxLength={60} placeholder="z. B. Alter Markt" /></label>
+        <label>Getränke<input autoComplete="off" value={draft.wine} onChange={e => set('wine', e.target.value)} maxLength={80} placeholder="z. B. Roter & weißer Glühwein" /></label>
         <label>Beschreibung<textarea value={draft.description} onChange={e => set('description', e.target.value)} maxLength={500} /></label>
         <fieldset className="coords">
           <legend>Position auf der Karte</legend>

@@ -676,3 +676,73 @@ li.ok .guide-icon { background: rgba(var(--pine-rgb), .16); color: var(--pine); 
 @keyframes slogan-in { from { opacity: 0; transform: translateY(8px); letter-spacing: .08em; } }
 .intro-skip { position: absolute; bottom: calc(26px + env(safe-area-inset-bottom)); font-size: 12px; color: var(--muted); opacity: .7; animation: slogan-in .6s ease 1.2s both; }
 @media (prefers-reduced-motion: reduce) { .intro * { animation: none !important; } }
+
+/* ═════════ TEST-DESIGN „neu“ (aktiv mit ?design=neu) – Regeln aus DESIGN.md ═════════
+   Alles hier greift nur bei <html data-design="neu">. Mit ?design=alt zurück. */
+
+/* Radien: 3 Stufen + Pillen-Buttons. Designs mit eigener Persönlichkeit behalten ihre Form. */
+:root[data-design="neu"] { --radius: 24px; --radius-sm: 16px; --btn-radius: 999px; }
+:root[data-design="neu"][data-theme="tannenwald"] { --radius: 14px; --radius-sm: 10px; --btn-radius: 10px; }
+:root[data-design="neu"][data-theme="zuckerstange"] { --radius: 30px; --radius-sm: 24px; }
+[data-design="neu"] .icon-btn, [data-design="neu"] .map-tools button { border-radius: 999px; }
+
+/* Typo-Skala: Text 16, Eingaben 16 (kein iPhone-Zoom), feste Stufen für Titel */
+[data-design="neu"] body { font-size: 16px; }
+[data-design="neu"] input, [data-design="neu"] textarea, [data-design="neu"] select { font-size: 16px !important; }
+[data-design="neu"] .card-head h2, [data-design="neu"] .section-head h2 { font-size: 22px; }
+[data-design="neu"] .page-head h1 { font-size: 36px; line-height: 1.05; }
+[data-design="neu"] .sheet h2, [data-design="neu"] .rating-stand h2 { font-size: 22px; }
+[data-design="neu"] h1, [data-design="neu"] h2, [data-design="neu"] .stand-main strong, [data-design="neu"] .podium strong { hyphens: auto; -webkit-hyphens: auto; overflow-wrap: break-word; }
+[data-design="neu"] .podium strong { overflow-wrap: anywhere; } /* Fallback, wenn der Browser keine deutsche Silbentrennung kann */
+
+/* Eyebrow: volles Gold (Kontrast ≥ 4.5:1), kein Dauer-Schimmer, ruhigere Laufweite */
+[data-design="neu"] .shiny { color: var(--amber); background: none; -webkit-background-clip: border-box; background-clip: border-box; animation: none; letter-spacing: .08em; }
+[data-design="neu"] .eyebrow, [data-design="neu"] .sheet-number, [data-design="neu"] .event-from { letter-spacing: .08em; }
+
+/* Ruhige Flächen statt Glas: Blur nur noch für schwebende Elemente */
+:root[data-design="neu"] :where(.card, .stats, .progress-card, .stand-card, .podium button, .people li, .guide-steps > li) {
+  background: rgba(var(--panel-rgb), .74); backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+
+/* Abstände im 4er-Raster, mehr Luft zwischen Sektionen */
+[data-design="neu"] .content { gap: 24px; }
+[data-design="neu"] .card-head { padding: 20px 20px 12px; }
+[data-design="neu"] .section-head { margin: 8px 4px 12px; }
+[data-design="neu"] .stand-list { gap: 12px; }
+[data-design="neu"] .stand-card { padding: 14px 16px 14px 14px; gap: 16px; }
+
+/* Standkarte: klare Hierarchie (Name > Ort/Getränk > Bewertung), einheitliche Status-Tags */
+[data-design="neu"] .stand-main { gap: 3px; }
+[data-design="neu"] .stand-main strong { font-size: 17px; font-weight: 650; }
+[data-design="neu"] .stand-main small { font-size: 14px; }
+[data-design="neu"] .stand-num { letter-spacing: .06em; gap: 6px; flex-wrap: wrap; }
+[data-design="neu"] .here-tag, [data-design="neu"] .done { margin-left: 0; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: 0; line-height: 1.5; }
+[data-design="neu"] .done { background: rgba(var(--pine-rgb), .14); }
+[data-design="neu"] .done.all { background: var(--surface-2); color: var(--ink); margin-left: 0; }
+
+/* Farbrollen: Gold = Aktion/Jetzt hier/Scores, ohne Leuchten; Balken einfarbig */
+[data-design="neu"] .btn.primary { box-shadow: 0 2px 8px rgba(0, 0, 0, .25); }
+[data-design="neu"] .stand-card.is-now { box-shadow: 0 0 0 1px rgba(var(--accent-rgb), .35); }
+[data-design="neu"] .criteria-bars b { background: var(--amber); }
+[data-design="neu"] .map-marker.selected { box-shadow: 0 0 0 4px rgba(var(--accent-rgb), .25); }
+
+/* Ranking: Medaillen deckend und lesbar über den Bildern */
+[data-design="neu"] .medal { background: var(--panel-solid); color: var(--ink); border-color: var(--panel-solid); box-shadow: 0 2px 8px rgba(0, 0, 0, .35); }
+[data-design="neu"] .place-1 .medal { background: var(--amber); color: var(--amber-ink); }
+
+/* Touch-Ziele mindestens 44 px */
+[data-design="neu"] .btn.small { min-height: 44px; }
+[data-design="neu"] .link-btn { min-height: 44px; }
+[data-design="neu"] .photo-previews button, [data-design="neu"] .admin-stand-actions .icon-btn { width: 44px; height: 44px; }
+
+/* Bedienung */
+[data-design="neu"] button:disabled { cursor: not-allowed; }
+@media (prefers-reduced-motion: reduce) {
+  [data-design="neu"] *, [data-design="neu"] *::before, [data-design="neu"] *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+
+/* Schalter zum Vergleichen (Gruppe) */
+.design-test { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: var(--radius-sm); border: 1px dashed rgba(var(--accent-rgb), .5); font-size: 13px; color: var(--muted); }
+.design-test strong { color: var(--ink); margin-right: auto; }
+.design-test button { min-height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); font-weight: 700; font-size: 13px; }
+.design-test button.active { background: var(--amber); border-color: var(--amber); color: var(--amber-ink); }

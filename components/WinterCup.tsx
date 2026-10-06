@@ -204,5 +204,5 @@ export default function WinterCup({ variant = 'classic' }: { variant?: CupVarian
       envTex.dispose(); pmrem.dispose(); renderer.dispose(); renderer.domElement.remove();
     };
   }, [variant]);
-  return <button className="winter-cup" aria-label="3D-Glühweintasse antippen" onClick={() => turn.current?.()}><div ref={host} />{!available && <img src={asset('/illustrations/tasse.svg')} alt="Glühweintasse" className="cup-fallback" />}</button>;
+  return <button type="button" className="winter-cup" aria-label="3D-Glühweintasse antippen" onClick={() => turn.current?.()}><div ref={host} />{!available && <img src={asset('/illustrations/tasse.svg')} alt="Glühweintasse" className="cup-fallback" />}</button>;
 }

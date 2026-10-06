@@ -38,7 +38,7 @@ export default function NoseSheet({ onSend, onClose }: { onSend: (title: string,
           ))}
         </div>
         <form className="nose-free" onSubmit={e => { e.preventDefault(); send(title, ''); }}>
-          <input value={title} onChange={e => setTitle(e.target.value)} maxLength={80} placeholder="Eigene Ansage …" aria-label="Eigene Ansage" />
+          <input autoComplete="off" value={title} onChange={e => setTitle(e.target.value)} maxLength={80} placeholder="Eigene Ansage …" aria-label="Eigene Ansage" />
           <button type="submit" className="btn primary small" disabled={!title.trim() || !!busy}>Senden</button>
         </form>
       </div>
