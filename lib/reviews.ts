@@ -216,12 +216,16 @@ async function liveStore(url: string, key: string, group: string, profile: () =>
     const photos: TourPhoto[] = [];
     for (const photo of review.photos) {
       if (!photo.src.startsWith('data:')) { photos.push(photo); continue; }
-      const blob = await (await fetch(photo.src)).blob();
-      const path = `${group}/${review.standId}/${review.authorId}/${photo.id}.jpg`;
       // Ohne upsert: Überschreiben bräuchte eine Lese-Regel, und die Fotos sollen nicht auflistbar sein.
-      const { error } = await db.storage.from('photos').upload(path, blob, { contentType: 'image/jpeg' });
-      if (error && !/exists|duplicate/i.test(error.message)) throw error;
-      photos.push({ ...photo, src: db.storage.from('photos').getPublicUrl(path).data.publicUrl });
+      const upload = async (dataUrl: string, path: string) => {
+        const blob = await (await fetch(dataUrl)).blob();
+        const { error } = await db.storage.from('photos').upload(path, blob, { contentType: 'image/jpeg' });
+        if (error && !/exists|duplicate/i.test(error.message)) throw error;
+        return db.storage.from('photos').getPublicUrl(path).data.publicUrl;
+      };
+      const base = `${group}/${review.standId}/${review.authorId}/${photo.id}`;
+      const thumb = photo.thumb?.startsWith('data:') ? await upload(photo.thumb, `${base}_t.jpg`) : photo.thumb;
+      photos.push({ ...photo, src: await upload(photo.src, `${base}.jpg`), thumb });
     }
     const row: Row = {
       id: review.id, group_code: group, stand_id: review.standId, author_id: review.authorId, author: review.author,

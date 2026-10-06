@@ -1,5 +1,6 @@
 import { asset } from './asset';
-export type TourPhoto = { id: string; src: string; name: string };
+/** src = Foto in voller Größe, thumb = kleines Vorschaubild für Listen (optional, ältere Fotos haben keins). */
+export type TourPhoto = { id: string; src: string; name: string; thumb?: string };
 export type Rating = { values: number[]; comment: string; photos: TourPhoto[]; updated: string };
 export type TourState = { name: string; ratings: Record<string, Rating> };
 export const initialState: TourState = { name: '', ratings: {} };

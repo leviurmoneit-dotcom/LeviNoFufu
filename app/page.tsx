@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { ArrowUpRight, BookOpen, Camera, Navigation, KeyRound, Shield, Check, ChevronRight, Copy, Images, MapPin, Map, PartyPopper, Star, Trophy, Users, Wifi, WifiOff, X } from 'lucide-react';
+import { ArrowUpRight, BookOpen, Camera, Download, Navigation, KeyRound, Shield, Check, ChevronRight, Copy, Images, MapPin, Map, PartyPopper, Star, Trophy, Users, Wifi, WifiOff, X } from 'lucide-react';
 import RatingSheet from '../components/RatingSheet';
 import StandSheet from '../components/StandSheet';
 import Guide, { ThemePicker } from '../components/Guide';
@@ -11,6 +11,7 @@ import NextPicker from '../components/NextPicker';
 import NoseBadge from '../components/ui/NoseBadge';
 import NoseSheet from '../components/NoseSheet';
 import Intro from '../components/Intro';
+import { exportBackup, exportCsv } from '../lib/export';
 import { applyTheme, THEME_KEY, themeById } from '../lib/themes';
 import Avatar from '../components/ui/Avatar';
 import CountUp from '../components/ui/CountUp';
@@ -424,7 +425,7 @@ export default function Home() {
           <div className="masonry">
             {photos.map(p => (
               <button key={p.id} type="button" className="photo" onClick={() => setLightbox({ src: p.src, label: `${p.stand!.name} · ${p.author}` })}>
-                <img src={p.src} alt={`${p.stand!.name}, Foto von ${p.author}`} /><span><strong>{p.stand!.name}</strong><small>{p.author}</small></span>
+                <img src={p.thumb || p.src} alt={`${p.stand!.name}, Foto von ${p.author}`} loading="lazy" decoding="async" /><span><strong>{p.stand!.name}</strong><small>{p.author}</small></span>
               </button>
             ))}
           </div>
@@ -467,6 +468,14 @@ export default function Home() {
             <ThemePicker value={theme} onChange={chooseTheme} />
           </section>
           <button type="button" className="btn ghost wide" onClick={() => setGuide(true)}><BookOpen size={17} /> Anleitung & Handy-Check</button>
+          <section className="card export-card">
+            <div className="card-head"><h2>Sichern</h2><span className="pill">{plural(reviews.length, 'Bewertung', 'Bewertungen')}</span></div>
+            <div className="admin-body">
+              <p className="muted">Alle Bewertungen der Gruppe als Tabelle, mit Ranking. Öffnet sich in Excel, Numbers oder Google Sheets.</p>
+              <button type="button" className="btn ghost wide" disabled={!reviews.length} onClick={() => exportCsv(group || 'lokal', stands, reviews)}><Download size={17} /> Als Tabelle speichern (CSV)</button>
+              {isAdmin && <button type="button" className="btn ghost wide" onClick={() => exportBackup(group, stands, reviews, meta)}><Download size={17} /> Komplett-Backup (JSON)</button>}
+            </div>
+          </section>
           <button type="button" className="link-btn" onClick={() => setIntro(true)}>Start-Animation nochmal ansehen</button>
           <details className="sources">
             <summary>Standliste 2025 & Quellen</summary>

@@ -84,7 +84,7 @@ export default function StandSheet({ stand, reviews, ownId, nasenId, isCurrent, 
               )}
               {r.photos.length > 0 && (
                 <div className="review-photos">
-                  {r.photos.map((p, i) => <button key={p.id} type="button" onClick={() => onPhoto(p.src, `${stand.name} · ${r.author}`)}><img src={p.src} alt={`Foto ${i + 1} von ${r.author}`} /></button>)}
+                  {r.photos.map((p, i) => <button key={p.id} type="button" onClick={() => onPhoto(p.src, `${stand.name} · ${r.author}`)}><img src={p.thumb || p.src} loading="lazy" decoding="async" alt={`Foto ${i + 1} von ${r.author}`} /></button>)}
                 </div>
               )}
             </li>
