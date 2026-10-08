@@ -2,7 +2,7 @@
 
 Next.js 15, React 19, TypeScript, Tailwind CSS 4. Mobile-first Web-App für eine Glühwein-Tour durch Bielefeld: Karte (MapLibre), Gruppen-Bewertungen mit Fotos (Supabase, sonst lokal), Three.js-Hintergrund und 3D-Tasse.
 
-Live: https://leviurmoneit-dotcom.github.io/LeviNoFufu/
+Live: https://leviurmoneit-dotcom.github.io/Gl-hwein-Tour-26/
 
 ```
 pnpm install
@@ -31,7 +31,7 @@ Die Seite ist eine installierbare Web-App (Manifest, Icons, Offline-Cache). Nach
 ## Hosting
 
 Empfohlen: **Vercel** (Hobby-Plan, kostenlos). Repo verbinden, Framework "Next.js" wird erkannt, Build `pnpm build`. Jeder Push bekommt eine eigene Vorschau-URL. Die App liegt dort auf der Wurzel der Domain, deshalb funktionieren Pfade, Manifest und Offline-Cache ohne Anpassung. Alternative: Cloudflare Pages (Build `pnpm build`, Ausgabeordner `out`).
-GitHub Pages ist unpraktisch, weil es unter `/LeviNoFufu/` ausliefert und alle Pfade anpassen müsste.
+GitHub Pages ist unpraktisch, weil es unter `/<Repo-Name>/` ausliefert und alle Pfade anpassen müsste.
 
 ## Stand des Imports
 

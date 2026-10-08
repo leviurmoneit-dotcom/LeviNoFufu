@@ -23,7 +23,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
         env:
-          NEXT_PUBLIC_BASE_PATH: /LeviNoFufu
+          NEXT_PUBLIC_BASE_PATH: /${{ github.event.repository.name }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL || secrets.SUPABASE_URL || vars.NEXT_PUBLIC_SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://umkmccwdfondjlvglswj.supabase.co' }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY || vars.NEXT_PUBLIC_SUPABASE_ANON_KEY || secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_ldK6Y_pO1dooil6HhEpHzA_Rzg_coU0' }}
       - run: touch out/.nojekyll
