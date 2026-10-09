@@ -2,7 +2,7 @@
 
 Next.js 15, React 19, TypeScript, Tailwind CSS 4. Mobile-first Web-App für eine Glühwein-Tour durch Bielefeld: Karte (MapLibre), Gruppen-Bewertungen mit Fotos (Supabase, sonst lokal), Three.js-Hintergrund und 3D-Tasse.
 
-Live: https://leviurmoneit-dotcom.github.io/Gl-hwein-Tour-26/
+Live: https://nofufu.github.io/Gl-hwein-Tour-26/
 
 ```
 pnpm install
@@ -42,4 +42,4 @@ Dieser Code wurde aus dem Drive-Ordner `gluehwein-tour-26` übernommen (Designpr
 
 ## Quellen
 
-- Karten: MapLibre GL JS, OpenFreeMap. Schrift: Fraunces und Instrument Sans (Fontsource, OFL). Icons: Lucide.
+- Karten: MapLibre GL JS, OpenFreeMap. Schrift: Bricolage Grotesque, Outfit und Instrument Sans (Fontsource, OFL). Icons: Lucide.

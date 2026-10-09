@@ -20,4 +20,4 @@ export const metadata: Metadata = {
   formatDetection: { telephone: false },
 };
 export const viewport: Viewport = { width: 'device-width', initialScale: 1, viewportFit: 'cover', themeColor: '#120e16' };
-export default function RootLayout({children}: Readonly<{children: React.ReactNode}>) { return <html lang="de" suppressHydrationWarning><head><script dangerouslySetInnerHTML={{ __html: themeBootScript }} /></head><body>{children}<PwaRegister /></body></html> }
+export default function RootLayout({children}: Readonly<{children: React.ReactNode}>) { return <html lang="de" data-ui="2026" suppressHydrationWarning><head><script dangerouslySetInnerHTML={{ __html: themeBootScript }} /></head><body>{children}<PwaRegister /></body></html> }

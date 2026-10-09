@@ -37,14 +37,13 @@ Regeln
 - Gold ist funktional: höchstens **ein** goldener Haupt-Button pro Ansicht. Kein Gold für Deko-Text.
 - Grün bedeutet immer „geschafft“. Nie als Deko.
 - Rot ist Marke + Gefahr. Keine roten Flächen hinter Text außer Warnhinweisen.
-- Verläufe nur in der Hintergrundszene und der Tasse – nicht in Buttons oder Text
-  (Ausnahme: das „26.“ im Hero eines Designs).
+- Verläufe nur in der Hintergrundszene und der Tasse – nicht in Buttons oder Text.
 - Kleiner Text (< 18 px) braucht ≥ 4.5:1 Kontrast. Keine halbtransparente Akzentfarbe für Text.
 
 ## 2. Typografie
 
-Display: **Fraunces** (Marktnacht/Tannenwald) · Bricolage Grotesque (Polarlicht) · Fredoka (Zuckerstange) ·
-Playfair Display (Schneekugel). Text: **Instrument Sans** in allen Designs.
+Display: **Bricolage Grotesque** (Marktnacht/Tannenwald) · Outfit (Polarlicht) · Fredoka (Zuckerstange) ·
+Playfair Display (Schneekugel). Betonung („26.“) per Farbe in derselben Schrift, keine Kursive, kein Verlauf. Text: **Instrument Sans** in allen Designs.
 
 | Stufe | Größe / Zeilenhöhe | Gewicht | Einsatz |
 |---|---|---|---|
@@ -92,7 +91,7 @@ Buttons sind **Pillen** (freundlicher, „Event-Ticket“-Gefühl). Keine andere
 | `e0` | keiner, 1 px `--line` | normale Karten |
 | `e1` | `0 2px 8px rgb(0 0 0 / .25)` | gedrückte/aktive Karten |
 | `e2` | `0 16px 40px rgb(0 0 0 / .45)` | schwebend: untere Leiste, Status-Pille, Toast |
-| `glow` | `0 0 0 4px accent/.25` | **nur** „Jetzt hier“ |
+| `ring` | `0 0 0 3px amber` | **nur** „Jetzt hier“ (Ring statt Leuchten) |
 
 Glas (Backdrop-Blur) nur für schwebende Elemente (untere Leiste, Status-Pille). Normale Karten
 sind ruhige, leicht aufgehellte Flächen ohne Blur – ruhiger, schneller, weniger „KI-Glas-Look“.
@@ -102,7 +101,7 @@ sind ruhige, leicht aufgehellte Flächen ohne Blur – ruhiger, schneller, wenig
 - **Hero:** Eyebrow (Datum) → Display-Titel → Spruch → (Nasenmeister-Knopf). Tasse rechts, nie abgeschnitten.
 - **Fortschritt:** große Zahl in Gold + „von 7 Stopps bewertet“, Segmentbalken: grün = bewertet, Gold pulsierend = jetzt hier.
 - **Standkarte:** Bild (64 × 76, `--r-md`) · Nummer + Status-Tags · Name (`heading-sm`) · Ort · Getränk (`body-sm`) · *eine* Bewertungszeile.
-  Erledigt = grüner Haken auf dem Bild, „Jetzt hier“ = goldener Rand + Glow. Nie beides als Farbfläche.
+  Erledigt = grüner Haken auf dem Bild, „Jetzt hier“ = goldener Rand. Nie beides als Farbfläche.
 - **Untere Leiste:** eine Einheit, `--panel-solid` mit Blur, `e2`, `--r-lg`. Oben „Jetzt hier“ (kompakt), unten Navigation.
 - **Sheets:** deckend `--panel-solid`, Titel `title`, primäre Aktion unten (Sticky-Footer bei langen Formularen).
 - **Tags:** Pille, `label`-Typo ohne Versalien, Gold = jetzt, Grün = erledigt, Neutral = Info.
